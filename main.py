@@ -51,6 +51,12 @@ def main():
         if line[-1] == ";": break
     # TODO: Display list of fuel materials
 
+    # Determine cooling period
+    m = fileReSeek(fh, "^->COOLING\s+(\d+).*")
+    if m:
+        cooling = True
+        cooling_time = eval(m.groups()[0])
+
     # Determine number of cycles
     n_cycles = 0
     while True:
@@ -67,71 +73,46 @@ def main():
         # Find beginning of cycle
         m = fileReSeek(fh, "\s*'MASS BALANCE OF CYCLE (\d+)'\s*")
 
+        # Find TIME block and set time
+        m = fileReSeek(fh, "\s*->TIME\s+(\d+)\s*")
+        if not m: break
+        time = eval(m.groups()[0])
         while True:
-            # Find TIME block and set time
-            m = fileReSeek(fh, "\s*->TIME\s+(\d+)\s*")
-            if not m: break
-            time = m.groups()[0]
-
-            # Read isotope data and create new material
             # Loop over fuel names
             for i in fuelNames:
                 m = fileReSeek(fh,"\s+MATERIAL\s(FUEL\d+)\s+")
                 mat = m.groups()[0]
                 print("Cycle {0} Time {1} {2}".format(cycle, time, mat))
                 for n in range(6): fh.readline()
-                fuel = Material()
+                # Read in material data
+                fuel = readMaterial(fh)
                 allMaterials[(cycle,time,mat)] = fuel
-                # Loop over individual isotopes
-                while True:
-                    words = fh.readline().split()
-                    if len(words) == 1: break
-                    name = words[1]
-                    original_mass = eval(words[3])
-                    if name[0:3] == "sfp":
-                        name = name[3:].upper()
-                        if name == "AM242":
-                            name = "AM242M"
-                        sfpReader = csv.reader(open("sfp.csv"))
-                        sfpReader.next()
-                        for nrow, row in enumerate(sfpReader):
-                            cells = [cell for cell in row]
-                            if nrow == 0:
-                                # Determine which column to use
-                                column = [i.upper() for i in cells].index(name)
-                                continue
-                            if nrow > 0:
-                                name = cells[0]
-                                fraction = eval(cells[column])
-                                mass = original_mass*fraction
-                            # Check if selected isotope is already in list. If 
-                            # so, add mass. Otherwise, create new Isotope and 
-                            # add to list
-                            if name in fuel.isotopes:
-                                fuel.isotopes[name].mass += mass
-                            else:
-                                fuel.isotopes[name] = Isotope(name,mass)
-                    else:
-                        fuel.isotopes[name] = Isotope(name, original_mass)
                 for iso in fuel.isotopes.values():
                     print("{0:7} {1:12.6e} kg".format(str(iso) + ":", iso.mass))
                 print("")
             
-            # Find position of next TIME block
-            position = fh.tell()
-            m = fileReSeek(fh, "\s*->TIME\s+(\d+)\s*")
-            timePosition = fh.tell()
-            fh.seek(position)
-            
-            # Find position of next CYCLE block
-            m = fileReSeek(fh, "\s*'MASS BALANCE OF CYCLE (\d+)'\s*")
-            cyclePosition = fh.tell()
-            
-            # If cycle block is first, break out of reading TIME blocks
-            if cyclePosition < timePosition:
-                fh.seek(position)
+            # If no more time blocks, read cooling 
+            for n in range(9): fh.readline()
+            words = fh.readline().split()
+            if words[0] == "->TIME":
+                time = eval(words[1])
+            elif cooling:
+                time += cooling_time
+                for i in fuelNames:
+                    m = fileReSeek(fh,"\s+MATERIAL\s(FUEL\d+)\s+")
+                    if not m: break
+                    mat = m.groups()[0]
+                    print("Cycle {0} Time {1} {2}".format(cycle, time, mat))
+                    for n in range(6): fh.readline()
+                    # Read in material data
+                    fuel = readMaterial(fh)
+                    allMaterials[(cycle,time,mat)] = fuel
+                    for iso in fuel.isotopes.values():
+                        print("{0:7} {1:12.6e} kg".format(str(iso) + ":", iso.mass))
+                    print("")
                 break
-            fh.seek(position)
+            else:
+                break
             
         
                 
@@ -150,6 +131,46 @@ def fileReSeek(fh, regex):
         match = p.match(line)
         if match:
             return match
+
+
+def readMaterial(fh):
+    """
+    Read in material data on fh starting from first line (usually Na23)
+    of data and return it in a Material instance.
+    """
+
+    newMaterial = Material()
+    while True:
+        words = fh.readline().split()
+        if len(words) == 1: break
+        name = words[1]
+        original_mass = eval(words[3])
+        if name[0:3] == "sfp":
+            name = name[3:].upper()
+            if name == "AM242":
+                name = "AM242M"
+            sfpReader = csv.reader(open("sfp.csv"))
+            sfpReader.next()
+            for nrow, row in enumerate(sfpReader):
+                cells = [cell for cell in row]
+                if nrow == 0:
+                    # Determine which column to use
+                    column = [i.upper() for i in cells].index(name)
+                    continue
+                if nrow > 0:
+                    name = cells[0]
+                    fraction = eval(cells[column])
+                    mass = original_mass*fraction
+                # Check if selected isotope is already in list. If 
+                # so, add mass. Otherwise, create new Isotope and 
+                # add to list
+                if name in newMaterial.isotopes:
+                    newMaterial.isotopes[name].mass += mass
+                else:
+                    newMaterial.isotopes[name] = Isotope(name,mass)
+        else:
+            newMaterial.isotopes[name] = Isotope(name, original_mass)
+    return newMaterial
 
 
 if __name__ == "__main__":
