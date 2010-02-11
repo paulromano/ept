@@ -20,13 +20,13 @@ class Material():
             total_mass += iso.mass
         return total_mass
 
-#    def findIsotope(self, name):
-#        """
-#        Search through list of isotopes for one that matches a given name.
-#        If match found, return that Isotope. Otherwise return None.
-#        """
-#
-#        for index, isotope in enumerate(self.isotopes):
-#            if str(isotope).upper() == name.upper():
-#                return isotope
-#        return None
+    def find(self, isotope):
+        """
+        Search through list of isotopes for one that matches a given name.
+        If match found, return that Isotope. Otherwise return None.
+        """
+
+        for key in self.isotopes:
+            if str(isotope).upper() == key.upper():
+                return self.isotopes[key]
+        return None
