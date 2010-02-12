@@ -314,13 +314,21 @@ lanthanides = ['La138','La139','La140','La141','La142','La143','La144','La145',
 
 def writeVision(charge, discharge):
     """
-    Docstring for writeVision
+    Formats data from a charge Material and a discharge Material into a form
+    suitable for VISION input. Two files are written out:
+
+    vision.txt  -- list of isotopes for VISION
+    summary.txt -- summary of equations for calculating total mass
+
+    The equations for total masses are based on the list of isotopes in
+    isoprocess.txt.
     """
     
     extrapath = "Rebuscode/postprocess/"
 
     visionFile = open("vision.txt","w")
-    visionFile.write("ISOTOPE    CHARGE      DISCHARGE   5 YEAR DECAY")
+    visionFile.write("ISOTOPE     CHARGE      DISCHARGE\n")
+    summaryFile = open("summary.txt","w")
 
     # Open Output/summary.txt
     
@@ -352,28 +360,44 @@ def writeVision(charge, discharge):
             isotopes = lanthanides
 
         # Determine weighting coefficients
-        m = fileReSeek(isoFile, "^WEIGHTS{0:03}(.*)/.*")
+        m = fileReSeek(isoFile, "^WEIGHTS{0:03}(.*)/.*".format(i))
         if m:
             weights = [eval(j) for j in m.groups()[0].split()]
         else:
             weights = [1 for isotope in isotopes]
 
-        # 
+        # Print summary information
+        if n_isotopes >= 2 and n_isotopes < 50:
+            equation = name + " = "
+            for index in range(n_isotopes):
+                if index != 0:
+                    equation += " + "
+                if weights[index] != 1:
+                    equation += "{0!s} * ".format(weights[index])
+                equation += isotopes[index]
+            summaryFile.write(equation + "\n")
+
+        # Calculate charge and discharge masses
         chargeMass = 0.0
         dischargeMass = 0.0
-        for isotope in isotopes:
+        for index, isotope in enumerate(isotopes):
+            # If isotope is in charge material, add its mass
             iso = charge.find(isotope)
             if iso:
-                chargeMass += iso.mass
+                chargeMass += iso.mass*weights[index]
+            # If isotope is in discharge material, add its mass
             iso = discharge.find(isotope)
             if iso:
-                dischargeMass += iso.mass
+                dischargeMass += iso.mass*weights[index]
+
+        # Write masses to visionFile
         if isotopes:
-            print("{0:12}{1:<12.4E}{2:<12.4E}".format(
+            visionFile.write("{0:12}{1:<12.4E}{2:<12.4E}\n".format(
                     name, chargeMass, dischargeMass))
 
     isoFile.close()
     visionFile.close()
+    summaryFile.close()
 
 
 if __name__ == "__main__":
