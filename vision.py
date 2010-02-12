@@ -1,181 +1,12 @@
 #!/usr/bin/env python
 
 """
-Copyright (C) 2010 Paul K. Romano
-
-Code to process mass output data from ERANOS and rewrite it in a
-form that VISION can use.
+Vision processing.
 """
 
 from __future__ import division, print_function
-import os
-import re
-import textwrap
-import csv
-import pdb
 
-from isotope import Isotope
-from material import Material
-
-__version__ = "0.1.1"
-
-def main():
-    """Main logic for ERANOS output processing"""
-
-    # Parse command line options
-    from optparse import OptionParser
-    usage = "usage: %prog [options] file"
-    version = "ERANOS Processing Tool v{0}".format(__version__)
-    p = OptionParser(usage=usage, version=version)
-    (options, args) = p.parse_args()
-    if not args:
-        p.print_help()
-        return
-    filename = args[0]
-    # Return error if specified output file doesn't exist
-    if not os.path.isfile(filename):
-        print("Error: file '{0}' does not exist!".format(filename))
-        return 1
-
-
-    # Open file
-    eranosFile = open(filename, "r")
-
-    # Find the names of all the fuel regions
-    fuelNames = []
-    m = fileReSeek(eranosFile, "^->LISTE_MILIEUX.*")
-    fuelNames += re.findall("'(FUEL\d+)'", m.group())
-    while True:
-        line = eranosFile.readline().strip()
-        fuelNames += re.findall("'(FUEL\d+)'", line)
-        if line[-1] == ";": break
-
-    # Determine cooling period
-    m = fileReSeek(eranosFile, "^->COOLING\s+(\d+).*")
-    if m:
-        cooling = True
-        cooling_time = eval(m.groups()[0])
-
-    # Determine number of cycles
-    n_cycles = 0
-    while True:
-        m = fileReSeek(eranosFile, ".*->CYCLE\s+(\d+).*")
-        if not m: break
-        n = int(m.groups()[0])
-        if n > n_cycles:
-            n_cycles = n
-    eranosFile.seek(0)
-
-    allMaterials = {}
-    for cycle in range(1, n_cycles + 1):
-
-        # Find beginning of cycle
-        m = fileReSeek(eranosFile, "\s*'MASS BALANCE OF CYCLE (\d+)'\s*")
-
-        # Find TIME block and set time
-        m = fileReSeek(eranosFile, "\s*->TIME\s+(\d+)\s*")
-        if not m: break
-        time = eval(m.groups()[0])
-        while True:
-            # Loop over fuel names
-            for i in fuelNames:
-                m = fileReSeek(eranosFile,"\s+MATERIAL\s(FUEL\d+)\s+")
-                mat = m.groups()[0]
-                print("Cycle {0} Time {1} {2}".format(cycle, time, mat))
-                for n in range(6): eranosFile.readline()
-                # Read in material data
-                fuel = readMaterial(eranosFile)
-                allMaterials[(cycle,time,mat)] = fuel
-                for iso in fuel.isotopes.values():
-                    print("{0:7} {1:12.6e} kg".format(str(iso) + ":", iso.mass))
-                print("")
-            
-            # If no more time blocks, read cooling 
-            for n in range(9): eranosFile.readline()
-            words = eranosFile.readline().split()
-            if words[0] == "->TIME":
-                time = eval(words[1])
-            elif cooling:
-                time += cooling_time
-                for i in fuelNames:
-                    m = fileReSeek(eranosFile,"\s+MATERIAL\s(FUEL\d+)\s+")
-                    if not m: break
-                    mat = m.groups()[0]
-                    print("Cycle {0} Time {1} {2}".format(cycle, time, mat))
-                    for n in range(6): eranosFile.readline()
-                    # Read in material data
-                    fuel = readMaterial(eranosFile)
-                    allMaterials[(cycle,time,mat)] = fuel
-                    for iso in fuel.isotopes.values():
-                        print("{0:7} {1:12.6e} kg".format(str(iso) + ":", iso.mass))
-                    print("")
-                break
-            else:
-                break
-        break # delete this
-    eranosFile.close()
-            
-    # Write VISION output
-    charge = allMaterials[(1,0,"FUEL1")]
-    discharge = allMaterials[(1,1030,"FUEL1")]
-    writeVision(charge, discharge)
-
-                
-def fileReSeek(fh, regex):
-    """
-    Seek to a position in the file open on handle fh that matches
-    the regular expression regex and return a MatchObject. If no
-    match is found, return None.
-    """
-
-    p = re.compile(regex)
-    while True:
-        line = fh.readline()
-        if line == '':
-            return None
-        match = p.match(line)
-        if match:
-            return match
-
-
-def readMaterial(fh):
-    """
-    Read in material data on fh starting from first line (usually Na23)
-    of data and return it in a Material instance.
-    """
-
-    newMaterial = Material()
-    while True:
-        words = fh.readline().split()
-        if len(words) == 1: break
-        name = words[1]
-        original_mass = eval(words[3])
-        if name[0:3] == "sfp":
-            name = name[3:].upper()
-            if name == "AM242":
-                name = "AM242M"
-            sfpReader = csv.reader(open("sfp.csv"))
-            sfpReader.next()
-            for nrow, row in enumerate(sfpReader):
-                cells = [cell for cell in row]
-                if nrow == 0:
-                    # Determine which column to use
-                    column = [i.upper() for i in cells].index(name)
-                    continue
-                if nrow > 0:
-                    name = cells[0]
-                    fraction = eval(cells[column])
-                    mass = original_mass*fraction
-                # Check if selected isotope is already in list. If 
-                # so, add mass. Otherwise, create new Isotope and 
-                # add to list
-                if name in newMaterial.isotopes:
-                    newMaterial.isotopes[name].mass += mass
-                else:
-                    newMaterial.isotopes[name] = Isotope(name,mass)
-        else:
-            newMaterial.isotopes[name] = Isotope(name, original_mass)
-    return newMaterial
+from fileIO import fileReSeek
 
 fissionProducts = ['H3','Co72','Co73','Co74','Co75','Ni72','Ni73','Ni74','Ni75',
                    'Ni76','Ni77','Ni78','Cu72','Cu73','Cu74','Cu75','Cu76',
@@ -312,7 +143,7 @@ lanthanides = ['La138','La139','La140','La141','La142','La143','La144','La145',
                'Tb163M','Tb164','Tb165','Dy160','Dy161','Dy162','Dy163','Dy164',
                'Dy165','Dy165M','Dy166','Ho165','Ho166','Er166','Er167','Er167M']
 
-def writeVision(charge, discharge):
+def writeInput(filename, charge, discharge):
     """
     Formats data from a charge Material and a discharge Material into a form
     suitable for VISION input. Two files are written out:
@@ -326,7 +157,7 @@ def writeVision(charge, discharge):
     
     extrapath = "Rebuscode/postprocess/"
 
-    visionFile = open("vision.txt","w")
+    visionFile = open(filename,"w")
     visionFile.write("ISOTOPE     CHARGE      DISCHARGE\n")
     summaryFile = open("summary.txt","w")
 
@@ -398,7 +229,3 @@ def writeVision(charge, discharge):
     isoFile.close()
     visionFile.close()
     summaryFile.close()
-
-
-if __name__ == "__main__":
-    main()
