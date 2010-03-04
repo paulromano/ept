@@ -19,7 +19,12 @@ from material import Material
 from fileIO import fileReSeek
 
 def loadData(filename, parent=None):
-    """Main logic for ERANOS output processing"""
+    """
+    Loads material data from an ERANOS output file.
+
+    Returns a dictionary of the form:
+        {(cycle,time,mat): <Material instance>, ... }
+    """
 
     # Open file
     eranosFile = open(filename, "r")
@@ -94,14 +99,10 @@ def loadData(filename, parent=None):
                     m = fileReSeek(eranosFile,"\s+MATERIAL\s(FUEL\d+)\s+")
                     if not m: break
                     mat = m.groups()[0]
-                    # print("Cycle {0} Time {1} {2}".format(cycle, time, mat))
                     for n in range(6): eranosFile.readline()
                     # Read in material data
                     fuel = readMaterial(eranosFile)
                     allMaterials[(cycle,time,mat)] = fuel
-                    # for iso in fuel.isotopes.values():
-                    #     print("{0:7} {1:12.6e} kg".format(str(iso) + ":", iso.mass))
-                    # print("")
                 break
             else:
                 break
@@ -148,3 +149,20 @@ def readMaterial(fh):
         else:
             newMaterial.isotopes[name] = Isotope(name, original_mass)
     return newMaterial
+
+
+def writeData(filename, materials):
+    """
+    Write out all material data in the dictionary 'materials' to 'filename'.
+    """
+
+    fh = open(filename, "w")
+    for cycle, time, mat in self.materials:
+        fh.write("Cycle {0} Time {1} {2}\n".format(cycle, time, mat))
+        material = self.materials[(cycle,time,mat)]
+        for isotope in material.isotopes.values():
+            fh.write("{0:7} {1:12.6e} kg\n".format(
+                    str(isotope) + ":", isotope.mass))
+        fh.write("\n")
+    fh.close()
+    return
