@@ -155,7 +155,7 @@ def writeInput(filename, charge, discharge):
     isoprocess.txt.
     """
     
-    extrapath = "Rebuscode/postprocess/"
+    #extrapath = "Rebuscode/postprocess/"
 
     visionFile = open(filename,"w")
     visionFile.write("ISOTOPE     CHARGE      DISCHARGE\n")
@@ -163,7 +163,7 @@ def writeInput(filename, charge, discharge):
 
     # Open Output/summary.txt
     
-    isoFile = open(extrapath + "Templates/isoprocess.txt", "r")
+    isoFile = open("isoprocess.txt", "r")
     m = fileReSeek(isoFile, "^NOISOTOPES\s+(\d+).*")
     n_total = eval(m.groups()[0])
 

@@ -43,8 +43,8 @@ class EPTDialog(QDialog):
         self.connect(writeDataButton, SIGNAL("clicked()"), self.writeData)
         self.connect(writeVisionButton, SIGNAL("clicked()"), self.writeVision)
 
-        # Create empty materials dictionary
-        self.materials = None
+        # Create empty cycles list
+        self.cycles = []
 
 
     def loadData(self):
@@ -54,7 +54,7 @@ class EPTDialog(QDialog):
 
         filename = str(QFileDialog.getOpenFileName(
                 self, "Load ERANOS Data", "./", "ERANOS Data (*.data.*)"))
-        self.materials = eranos.loadData(filename, self)
+        self.cycles = eranos.loadData(filename, self)
 
 
     def writeData(self):
@@ -62,13 +62,13 @@ class EPTDialog(QDialog):
         Write out all ERANOS data to a specified file.
         """
         
-        if not self.materials:
+        if not self.cycles:
             QMessageBox.warning(self, "No Data", "No ERANOS data has been"
                                 " loaded yet!")
             return
         filename = str(QFileDialog.getSaveFileName(
-                self, "Save VISION Input", "./", "VISION Input (*.txt)"))
-        eranos.writeData(filename, self.materials)
+                self, "Save ERANOS output", "./", "ERANOS Data (*)"))
+        eranos.writeData(filename, self.cycles)
 
 
     def writeVision(self):
@@ -76,15 +76,19 @@ class EPTDialog(QDialog):
         Format material data into form suitable for VISION.
         """
 
-        if not self.materials:
+        if not self.cycles:
             QMessageBox.warning(self, "No Data", "No ERANOS data has been"
                                 " loaded yet!")
             return
         filename = str(QFileDialog.getSaveFileName(
                 self, "Save VISION Input", "./", "VISION Input (*.txt)"))
-        charge = self.materials[(1,0,"FUEL1")]
-        discharge = self.materials[(1,1030,"FUEL1")]
 
+        cycle = self.cycles[0]
+        t_charge = 0
+        t_discharge = cycle.times()[-1]
+
+        charge = cycle.materials[(t_charge,"FUEL1")]
+        discharge = cycle.materials[(t_discharge,"FUEL1")]
         vision.writeInput(filename, charge, discharge)
         
 

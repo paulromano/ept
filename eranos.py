@@ -16,18 +16,19 @@ from PyQt4.QtGui import *
 
 from isotope import Isotope
 from material import Material
+from cycle import Cycle
 from fileIO import fileReSeek
 
 def loadData(filename, parent=None):
     """
     Loads material data from an ERANOS output file.
 
-    Returns a dictionary of the form:
-        {(cycle,time,mat): <Material instance>, ... }
+    Returns a list 'cycles' with all the Cycle instances.
     """
 
     # Open file
     eranosFile = open(filename, "r")
+    cycles = []
 
     # Find the names of all the fuel regions
     fuelNames = []
@@ -38,77 +39,74 @@ def loadData(filename, parent=None):
         fuelNames += re.findall("'(FUEL\d+)'", line)
         if line[-1] == ";": break
 
+    # Determine if there is a blanket material
+    m = fileReSeek(eranosFile, "^->BLANKET.*")
+    if m:
+        fuelNames += ["BLANK"]
+    else:
+        eranosFile.seek(0)
+    
     # Determine cooling period
+    position = eranosFile.tell()
     m = fileReSeek(eranosFile, "^->COOLING\s+(\d+).*")
     if m:
-        cooling = True
         cooling_time = eval(m.groups()[0])
+    else:
+        cooling_time = None
+        eranosFile.seek(position)
 
-    # Determine number of cycles
-    n_cycles = 0
+    # Determine cycle information
     while True:
         m = fileReSeek(eranosFile, ".*->CYCLE\s+(\d+).*")
         if not m: break
         n = int(m.groups()[0])
-        if n > n_cycles:
-            n_cycles = n
+        m = fileReSeek(eranosFile, "^->PASSE\s\((\d+)\).*")
+        if not m: break
+        timestep = int(m.groups()[0])
+        m = fileReSeek(eranosFile, "^->ITER\s(\d+).*")
+        iterations = int(m.groups()[0])
+        cycles.append(Cycle(n, timestep, iterations, cooling_time))
     eranosFile.seek(0)
 
+    # Determine how many materials to read total
+    n_materials = 0
+    for cycle in cycles:
+        n_materials += len(cycle.times())*len(fuelNames)
+    
     # Create progress bar
     progress = QProgressDialog("Loading ERANOS Data...",
-                               "Cancel", 0, n_cycles, parent)
+                               "Cancel", 0, n_materials, parent)
     progress.setWindowModality(Qt.WindowModal)
     progress.setMinimumDuration(0)
     progress.setValue(0)
 
-    allMaterials = {}
-    for cycle in range(1, n_cycles + 1):
+    pValue = 0
+    for cycle in cycles:
         # Find beginning of cycle
         m = fileReSeek(eranosFile, "\s*'MASS BALANCE OF CYCLE (\d+)'\s*")
 
         # Find TIME block and set time
-        m = fileReSeek(eranosFile, "\s*->TIME\s+(\d+)\s*")
-        if not m: break
-        time = eval(m.groups()[0])
-        while True:
+        for time in cycle.times():
+            # Progress bar
             QCoreApplication.processEvents()
             if (progress.wasCanceled()):
                 return None
 
             # Loop over fuel names
             for i in fuelNames:
-                m = fileReSeek(eranosFile,"\s+MATERIAL\s(FUEL\d+)\s+")
-                mat = m.groups()[0]
-                # print("Cycle {0} Time {1} {2}".format(cycle, time, mat))
+                m = fileReSeek(eranosFile,"\s+MATERIAL\s(FUEL\d+|BLANK)\s+")
+                name = m.groups()[0]
                 for n in range(6): eranosFile.readline()
                 # Read in material data
-                fuel = readMaterial(eranosFile)
-                allMaterials[(cycle,time,mat)] = fuel
-                # for iso in fuel.isotopes.values():
-                #     print("{0:7} {1:12.6e} kg".format(str(iso) + ":", iso.mass))
-                # print("")
-            
-            # If no more time blocks, read cooling 
-            for n in range(9): eranosFile.readline()
-            words = eranosFile.readline().split()
-            if words[0] == "->TIME":
-                time = eval(words[1])
-            elif cooling:
-                time += cooling_time
-                for i in fuelNames:
-                    m = fileReSeek(eranosFile,"\s+MATERIAL\s(FUEL\d+)\s+")
-                    if not m: break
-                    mat = m.groups()[0]
-                    for n in range(6): eranosFile.readline()
-                    # Read in material data
-                    fuel = readMaterial(eranosFile)
-                    allMaterials[(cycle,time,mat)] = fuel
-                break
-            else:
-                break
-        progress.setValue(cycle)
+                material = readMaterial(eranosFile)
+                cycle.materials[(time,name)] = material
+                # Set progress bar value
+                pValue += 1
+                progress.setValue(pValue)
+                #print((cycle.n, time, name)) # Only for debugging
+
     eranosFile.close()
-    return allMaterials
+    return cycles
            
                 
 def readMaterial(fh):
@@ -151,18 +149,40 @@ def readMaterial(fh):
     return newMaterial
 
 
-def writeData(filename, materials):
+def writeData(filename, cycles):
     """
-    Write out all material data in the dictionary 'materials' to 'filename'.
+    Write out all material data in the 'cycles' list to 'filename'.
     """
 
+    # Open file for writing
     fh = open(filename, "w")
-    for cycle, time, mat in self.materials:
-        fh.write("Cycle {0} Time {1} {2}\n".format(cycle, time, mat))
-        material = self.materials[(cycle,time,mat)]
-        for isotope in material.isotopes.values():
-            fh.write("{0:7} {1:12.6e} kg\n".format(
-                    str(isotope) + ":", isotope.mass))
-        fh.write("\n")
+    
+    materialNames = []
+    for time, name in cycles[0].materials:
+        if not name in materialNames:
+            materialNames.append(name)
+    materialNames.sort()
+
+    # Write material and cycle information
+    fh.write("Materials:\n")
+    for name in materialNames:
+        fh.write("    {0}\n".format(name))
+    fh.write("\n")
+    for cycle in cycles:
+        fh.write("Cycle {0}: {1}\n".format(
+                cycle.n, " ".join([str(i) for i in cycle.times()])))
+    fh.write("\n")
+
+    # Write data from materials dictionary
+    for cycle in cycles:
+        for time in cycle.times():
+            for name in materialNames:
+                fh.write("Cycle {0} Time {1} {2}\n".format(
+                        cycle.n, time, name))
+                material = cycle.materials[(time,name)]
+                for isotope in material.isotopes.values():
+                    fh.write("{0:7} {1:12.6e} kg\n".format(
+                            str(isotope) + ":", isotope.mass))
+                fh.write("\n")
     fh.close()
     return
