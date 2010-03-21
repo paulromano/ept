@@ -15,6 +15,7 @@ from PyQt4.QtGui import *
 
 import eranos
 import vision
+import dataViewer
 
 class EPTDialog(QDialog):
 
@@ -26,22 +27,26 @@ class EPTDialog(QDialog):
         super(EPTDialog, self).__init__(parent)
 
         # Layout
-        loadDataButton = QPushButton("Load ERANOS Data...")
-        viewDataButton = QPushButton("View ERANOS Data")
-        writeDataButton = QPushButton("Write ERANOS Data...")
-        writeVisionButton = QPushButton("Write VISION Input...")
+        self.loadDataButton = QPushButton("Load ERANOS Data...")
+        self.viewDataButton = QPushButton("View ERANOS Data")
+        self.viewDataButton.setDisabled(True)
+        self.writeDataButton = QPushButton("Write ERANOS Data...")
+        self.writeDataButton.setDisabled(True)
+        self.writeVisionButton = QPushButton("Write VISION Input...")
+        self.writeVisionButton.setDisabled(True)
         layout = QVBoxLayout()
-        layout.addWidget(loadDataButton)
-        layout.addWidget(viewDataButton)
-        layout.addWidget(writeDataButton)
-        layout.addWidget(writeVisionButton)
+        layout.addWidget(self.loadDataButton)
+        layout.addWidget(self.viewDataButton)
+        layout.addWidget(self.writeDataButton)
+        layout.addWidget(self.writeVisionButton)
         self.setLayout(layout)
         self.setWindowTitle("EPT")
 
         # Set connections
-        self.connect(loadDataButton, SIGNAL("clicked()"), self.loadData)
-        self.connect(writeDataButton, SIGNAL("clicked()"), self.writeData)
-        self.connect(writeVisionButton, SIGNAL("clicked()"), self.writeVision)
+        self.connect(self.loadDataButton, SIGNAL("clicked()"), self.loadData)
+        self.connect(self.viewDataButton, SIGNAL("clicked()"), self.viewData)
+        self.connect(self.writeDataButton, SIGNAL("clicked()"), self.writeData)
+        self.connect(self.writeVisionButton, SIGNAL("clicked()"), self.writeVision)
 
         # Create empty cycles list
         self.cycles = []
@@ -54,7 +59,22 @@ class EPTDialog(QDialog):
 
         filename = str(QFileDialog.getOpenFileName(
                 self, "Load ERANOS Data", "./", "ERANOS Data (*.data.*)"))
+        if not filename:
+            return
         self.cycles = eranos.loadData(filename, self)
+        if self.cycles:
+            self.viewDataButton.setEnabled(True)
+            self.writeDataButton.setEnabled(True)
+            self.writeVisionButton.setEnabled(True)
+
+
+    def viewData(self):
+        """
+        Open the data viewing dialog window.
+        """
+
+        dialog = dataViewer.DataViewer(self.cycles, self)
+        dialog.exec_()
 
 
     def writeData(self):
@@ -62,10 +82,6 @@ class EPTDialog(QDialog):
         Write out all ERANOS data to a specified file.
         """
         
-        if not self.cycles:
-            QMessageBox.warning(self, "No Data", "No ERANOS data has been"
-                                " loaded yet!")
-            return
         filename = str(QFileDialog.getSaveFileName(
                 self, "Save ERANOS output", "./", "ERANOS Data (*)"))
         eranos.writeData(filename, self.cycles)
@@ -75,12 +91,6 @@ class EPTDialog(QDialog):
         """
         Format material data into form suitable for VISION.
         """
-
-        # Check for data
-        if not self.cycles:
-            QMessageBox.warning(self, "No Data", "No ERANOS data has been"
-                                " loaded yet!")
-            return
 
         # Choose cycle
         choice, ok = QInputDialog.getInt(
