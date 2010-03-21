@@ -25,7 +25,25 @@ class Cycle():
         self.materials = {}
 
     def times(self):
+        """
+        Return a list of all the timesteps in days including the step
+        for cooling if applicable.
+        """
+
         timeList = [self.timestep*i for i in range(self.iterations+1)]
         if self.cooling_time:
             timeList.append(timeList[-1] + self.cooling_time)
         return timeList
+
+    def materialNames(self):
+        """
+        Returns a sorted list of the materials.
+        """
+
+        nameList = []
+        for time, name in self.materials:
+            if not name in nameList:
+                nameList.append(name)
+        nameList.sort()
+        return nameList
+

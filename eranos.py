@@ -156,14 +156,9 @@ def writeData(filename, cycles):
 
     # Open file for writing
     fh = open(filename, "w")
-    
-    materialNames = []
-    for time, name in cycles[0].materials:
-        if not name in materialNames:
-            materialNames.append(name)
-    materialNames.sort()
 
     # Write material and cycle information
+    materialNames = cycles[0].materialNames()
     fh.write("Materials:\n")
     for name in materialNames:
         fh.write("    {0}\n".format(name))

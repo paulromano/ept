@@ -76,20 +76,55 @@ class EPTDialog(QDialog):
         Format material data into form suitable for VISION.
         """
 
+        # Check for data
         if not self.cycles:
             QMessageBox.warning(self, "No Data", "No ERANOS data has been"
                                 " loaded yet!")
             return
+
+        # Choose cycle
+        choice, ok = QInputDialog.getInt(
+            self, "Choose Cycle", "Choose which cycle to load from:",
+            1, 1, len(self.cycles))
+        if ok:
+            cycle = self.cycles[choice-1]
+        else:
+            return
+
+        # Choose charge time
+        choice, ok = QInputDialog.getItem(
+            self, "Choose Charge Time", "Choose timestep for charge material",
+            [str(i) for i in cycle.times()], 0, False)
+        if ok:
+            t_charge = eval(str(choice))
+        else:
+            return
+
+        # Choose discharge time
+        choice, ok = QInputDialog.getItem(
+            self, "Choose Discharge Time", "Choose timestep for charge "
+            "material", [str(i) for i in cycle.times()], 0, False)
+        if ok:
+            t_discharge = eval(str(choice))
+        else:
+            return
+
+        # Choose material from
+        choice, ok = QInputDialog.getItem(
+            self, "Choose Discharge Time", "Choose timestep for discharge "
+            "material", cycle.materialNames(), 0, False)
+        if ok:
+            material = str(choice)
+        else:
+            return
+                                        
+        # Choose file and write data
         filename = str(QFileDialog.getSaveFileName(
                 self, "Save VISION Input", "./", "VISION Input (*.txt)"))
-
-        cycle = self.cycles[0]
-        t_charge = 0
-        t_discharge = cycle.times()[-1]
-
-        charge = cycle.materials[(t_charge,"FUEL1")]
-        discharge = cycle.materials[(t_discharge,"FUEL1")]
-        vision.writeInput(filename, charge, discharge)
+        if filename:
+            charge = cycle.materials[(t_charge,material)]
+            discharge = cycle.materials[(t_discharge,material)]
+            vision.writeInput(filename, charge, discharge)
         
 
 if __name__ == "__main__":
