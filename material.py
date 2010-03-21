@@ -8,9 +8,13 @@ class Material():
     def __init__(self):
         """
         Create new instance of a material
+
+        isotopes = dictionary of form {"ZZAAAM": <Isotope instance>, ...}
+        volume = volume of material
         """
 
         self.isotopes = {}
+        self.volume = None
 
     def mass(self):
         """Return the total mass of the material"""

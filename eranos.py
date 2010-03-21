@@ -96,9 +96,11 @@ def loadData(filename, parent=None):
             for i in fuelNames:
                 m = fileReSeek(eranosFile,"\s+MATERIAL\s(FUEL\d+|BLANK)\s+")
                 name = m.groups()[0]
-                for n in range(6): eranosFile.readline()
+                volume = eval(eranosFile.readline().split()[-1])
+                for n in range(5): eranosFile.readline()
                 # Read in material data
                 material = readMaterial(eranosFile)
+                material.volume = volume
                 cycle.materials[(time,name)] = material
                 # Set progress bar value
                 pValue += 1
@@ -175,8 +177,9 @@ def writeData(filename, cycles):
                 fh.write("Cycle {0} Time {1} {2}\n".format(
                         cycle.n, time, name))
                 material = cycle.materials[(time,name)]
+                fh.write("    Volume = {0}\n".format(material.volume))
                 for isotope in material.isotopes.values():
-                    fh.write("{0:7} {1:12.6e} kg\n".format(
+                    fh.write("    {0:7} {1:12.6e} kg\n".format(
                             str(isotope) + ":", isotope.mass))
                 fh.write("\n")
     fh.close()
