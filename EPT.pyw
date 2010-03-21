@@ -112,7 +112,7 @@ class EPTDialog(QDialog):
 
         # Choose discharge time
         choice, ok = QInputDialog.getItem(
-            self, "Choose Discharge Time", "Choose timestep for charge "
+            self, "Choose Discharge Time", "Choose timestep for discharge "
             "material", [str(i) for i in cycle.times()], 0, False)
         if ok:
             t_discharge = eval(str(choice))
