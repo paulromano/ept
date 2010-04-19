@@ -30,6 +30,8 @@ class DataViewer(QDialog):
         self.matCombo = QComboBox()
         volLabel = QLabel("Volume:")
         self.volume = QLabel()
+        heatLabel = QLabel("Heat Rate (W/kg):")
+        self.heatRate = QLabel()
         self.dataTree = QTreeWidget()
         self.dataTree.setColumnCount(2)
         self.dataTree.setHeaderLabels(["Isotope", "Mass (kg)"])
@@ -45,7 +47,9 @@ class DataViewer(QDialog):
         layout.addWidget(self.matCombo,2,1)
         layout.addWidget(volLabel,3,0)
         layout.addWidget(self.volume,3,1)
-        layout.addWidget(self.dataTree,4,0,1,2)
+        layout.addWidget(heatLabel,4,0)
+        layout.addWidget(self.heatRate,4,1)
+        layout.addWidget(self.dataTree,5,0,1,2)
         self.setLayout(layout)
         self.setWindowTitle("View ERANOS Data")
 
@@ -71,7 +75,8 @@ class DataViewer(QDialog):
         # Populate material tree
         self.dataTree.clear()
         material = self.cycles[i].materials[(timestep,material)]
-        self.volume.setText(str(material.volume))
+        self.volume.setText("{0:10.4e}".format(material.volume))
+        self.heatRate.setText("{0:10.4e}".format(material.heatingRate()))
         isotopes = material.isotopes.keys()
         isotopes.sort()
         for name in isotopes:

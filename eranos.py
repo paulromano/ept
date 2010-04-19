@@ -178,6 +178,8 @@ def writeData(filename, cycles):
                         cycle.n, time, name))
                 material = cycle.materials[(time,name)]
                 fh.write("    Volume = {0}\n".format(material.volume))
+                fh.write("    Heating Rate = {0} W/kg\n".format(
+                        material.heatingRate()))
                 for isotope in material.isotopes.values():
                     fh.write("    {0:7} {1:12.6e} kg\n".format(
                             str(isotope) + ":", isotope.mass))
