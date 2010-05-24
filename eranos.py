@@ -9,7 +9,6 @@ form that VISION can use.
 
 from __future__ import division, print_function
 import re
-import csv
 import math
 
 from PyQt4.QtCore import *
@@ -19,6 +18,7 @@ from isotope import Isotope
 from material import Material
 from cycle import Cycle
 from fileIO import fileReSeek
+from parameters import sfp
 
 def loadData(filename, parent=None):
     """
@@ -134,9 +134,6 @@ def readMaterial(fh):
     of data and return it in a Material instance.
     """
 
-    # TODO: Change this so that sfp.csv is only opened once and data
-    #       is stored in memory
-
     newMaterial = Material()
     while True:
         words = fh.readline().split()
@@ -147,17 +144,14 @@ def readMaterial(fh):
             name = name[3:].upper()
             if name == "AM242":
                 name = "AM242M"
-            sfpReader = csv.reader(open("sfp.csv"))
-            sfpReader.next()
-            for nrow, row in enumerate(sfpReader):
-                cells = [cell for cell in row]
+            for nrow, row in enumerate(sfp):
                 if nrow == 0:
                     # Determine which column to use
-                    column = [i.upper() for i in cells].index(name)
+                    column = [i.upper() for i in row].index(name)
                     continue
                 if nrow > 0:
-                    name = cells[0]
-                    fraction = eval(cells[column])
+                    name = row[0]
+                    fraction = row[column]
                     mass = original_mass*fraction
                 # Check if selected isotope is already in list. If 
                 # so, add mass. Otherwise, create new Isotope and 
