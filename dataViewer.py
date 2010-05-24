@@ -32,6 +32,14 @@ class DataViewer(QDialog):
         self.volume = QLabel()
         heatLabel = QLabel("Heat Rate (W/kg):")
         self.heatRate = QLabel()
+        gammaHeatLabel = QLabel("Photon Heat Rate (W/kg):")
+        self.gammaHeatRate = QLabel()
+        neutronLabel = QLabel("Neutron Rate (N/s/kg):")
+        self.neutronRate = QLabel()
+        doseLabel = QLabel("External Dose Rate (Sv/hr/kg at 1 m):")
+        self.doseRate = QLabel()
+        critLabel = QLabel("Critical Mass (kg):")
+        self.critMass = QLabel()
         self.dataTree = QTreeWidget()
         self.dataTree.setColumnCount(2)
         self.dataTree.setHeaderLabels(["Isotope", "Mass (kg)"])
@@ -49,7 +57,15 @@ class DataViewer(QDialog):
         layout.addWidget(self.volume,3,1)
         layout.addWidget(heatLabel,4,0)
         layout.addWidget(self.heatRate,4,1)
-        layout.addWidget(self.dataTree,5,0,1,2)
+        layout.addWidget(gammaHeatLabel,5,0)
+        layout.addWidget(self.gammaHeatRate,5,1)
+        layout.addWidget(neutronLabel,6,0)
+        layout.addWidget(self.neutronRate,6,1)
+        layout.addWidget(doseLabel,7,0)
+        layout.addWidget(self.doseRate,7,1)
+        layout.addWidget(critLabel,8,0)
+        layout.addWidget(self.critMass,8,1)
+        layout.addWidget(self.dataTree,9,0,1,2)
         self.setLayout(layout)
         self.setWindowTitle("View ERANOS Data")
 
@@ -78,6 +94,17 @@ class DataViewer(QDialog):
         self.volume.setText("{0:10.4e}".format(material.volume))
         self.heatRate.setText("{0:10.4e}".format(
                 material.heat() / material.mass()))
+        self.gammaHeatRate.setText("{0:10.4e}".format(
+                material.gammaHeat() / material.mass()))
+        self.neutronRate.setText("{0:10.4e}".format(
+                material.neutronProduction() / material.mass()))
+        self.doseRate.setText("{0:10.4e}".format(
+                material.externalDose() / material.mass()))
+        if material.criticalMass():
+            self.critMass.setText("{0:10.4e}".format(
+                material.criticalMass()))
+        else:
+            self.critMass.setText("")
         isotopes = material.isotopes.keys()
         isotopes.sort()
         for name in isotopes:

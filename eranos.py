@@ -191,6 +191,7 @@ def writeData(filename, cycles):
     fh.write("\n")
 
     # Write data from materials dictionary
+    # TODO: encapsulate some of this logic in a Material object method?
     for cycle in cycles:
         for time in cycle.times():
             for name in materialNames:
@@ -200,6 +201,14 @@ def writeData(filename, cycles):
                 fh.write("    Volume = {0}\n".format(material.volume))
                 fh.write("    Heating Rate = {0} W/kg\n".format(
                         material.heat()/material.mass()))
+                fh.write("    Photon Heating Rate = {0} W/kg\n".format(
+                        material.gammaHeat()/material.mass()))
+                fh.write("    Neutron Production Rate = {0} N/s/kg\n".format(
+                        material.neutronProduction()/material.mass()))
+                fh.write("    External Dose Rate = {0} Sv/hr/kg at 1 m\n".format(
+                        material.externalDose()/material.mass()))
+                fh.write("    Critical Mass = {0} kg\n".format(
+                        material.criticalMass()))
                 for isotope in material.isotopes.values():
                     fh.write("    {0:7} {1:12.6e} kg\n".format(
                             str(isotope) + ":", isotope.mass))
