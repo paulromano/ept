@@ -10,6 +10,7 @@ form that VISION can use.
 from __future__ import division, print_function
 import re
 import csv
+import math
 
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
@@ -82,6 +83,18 @@ def loadData(filename, parent=None):
 
     pValue = 0
     for cycle in cycles:
+        # Determine critical mass
+        xsDict = {}
+        for i in fuelNames:
+            m = fileReSeek(eranosFile, "\sREGION :(FUEL\d+|BLANK)\s*")
+            name = m.groups()[0]
+            m = fileReSeek(eranosFile,
+                           "\s*TOTAL\s+(\S+)\s+(\S+)\s+\S+\s+(\S+).*")
+            nuSigmaF = eval(m.groups()[0])
+            SigmaA = eval(m.groups()[1])
+            Diff = eval(m.groups()[2])
+            xsDict[name] = (nuSigmaF, SigmaA, Diff)
+
         # Find beginning of cycle
         m = fileReSeek(eranosFile, ".*M A T E R I A L   B A L A N C E.*")
 
@@ -101,6 +114,10 @@ def loadData(filename, parent=None):
                 # Read in material data
                 material = readMaterial(eranosFile)
                 material.volume = volume
+                if time == 0:
+                    material.nuFissionRate = xsDict[name][0]
+                    material.absorptionRate = xsDict[name][1]
+                    material.diffRate = xsDict[name][2]
                 cycle.materials[(time,name)] = material
                 # Set progress bar value
                 pValue += 1

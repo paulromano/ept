@@ -5,6 +5,7 @@ Class definition for a material
 """
 
 import parameters
+import math
 
 class Material():
     def __init__(self):
@@ -14,6 +15,9 @@ class Material():
         Attributes:
           isotopes = dictionary of form {"ZZAAAM": <Isotope instance>, ...}
           volume = volume of material
+          nuFissionRate = nuFission cross section * flux
+          absorptionRate = absorption cross section * flux
+          diffRate = diffusion coefficient * flux
 
         Methods:
           mass() = mass of the material
@@ -22,10 +26,14 @@ class Material():
           gammaHeat() = heat content due to photons in W
           neutronProduction() = neutron production rate in N/s
           externalDose() = external dose rate in Sv/hr at 1 meter
+          criticalMass() = critical mass of bare sphere in kg
         """
 
         self.isotopes = {}
         self.volume = None
+        self.nuFissionRate = None
+        self.absorptionRate = None
+        self.diffRate = None
 
     def mass(self):
         """Return the total mass of the material in kg"""
@@ -88,3 +96,29 @@ class Material():
                 isotope = self.isotopes[key]
                 rate += isotope.mass * parameters.data[key.upper()][3]
         return rate
+
+    def criticalMass(self):
+        """
+        Returns the critical mass of bare sphere of the material 
+        in kg
+
+        To determine the critical mass, we merely need to set the
+        geometric buckling equal to the material buckling:
+
+           (pi/R)^2 = (nuSigmaF*phi - SigmaA*phi)/(D*phi)
+
+        The nuFission, absorption, and diffusion coefficient reaction
+        rates are found in the output of an ECCO calculation. We can 
+        thus solve for the critical radius as:
+
+           R = sqrt( pi^2*D*phi / (nuSigmaF*phi - SigmaA*phi) )
+
+        Then we multiply the volume of a sphere of radius R by the
+        density of the material to determine the critical mass.
+        """
+
+        if self.nuFissionRate > self.absorptionRate:
+            R = math.sqrt(math.pi**2 * self.diffRate/
+                          (self.nuFissionRate - self.absorptionRate))
+            return 4./3. * math.pi * R**3 * self.mass()/self.volume
+        return None
