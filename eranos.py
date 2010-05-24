@@ -117,6 +117,9 @@ def readMaterial(fh):
     of data and return it in a Material instance.
     """
 
+    # TODO: Change this so that sfp.csv is only opened once and data
+    #       is stored in memory
+
     newMaterial = Material()
     while True:
         words = fh.readline().split()
