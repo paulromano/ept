@@ -83,7 +83,7 @@ def loadData(filename, parent=None):
     pValue = 0
     for cycle in cycles:
         # Find beginning of cycle
-        m = fileReSeek(eranosFile, "\s*'MASS BALANCE OF CYCLE (\d+)'\s*")
+        m = fileReSeek(eranosFile, ".*M A T E R I A L   B A L A N C E.*")
 
         # Find TIME block and set time
         for time in cycle.times():
@@ -182,7 +182,7 @@ def writeData(filename, cycles):
                 material = cycle.materials[(time,name)]
                 fh.write("    Volume = {0}\n".format(material.volume))
                 fh.write("    Heating Rate = {0} W/kg\n".format(
-                        material.heatingRate()))
+                        material.heat()/material.mass()))
                 for isotope in material.isotopes.values():
                     fh.write("    {0:7} {1:12.6e} kg\n".format(
                             str(isotope) + ":", isotope.mass))

@@ -11,18 +11,27 @@ class Material():
         """
         Create new instance of a material
 
-        isotopes = dictionary of form {"ZZAAAM": <Isotope instance>, ...}
-        volume = volume of material
+        Attributes:
+          isotopes = dictionary of form {"ZZAAAM": <Isotope instance>, ...}
+          volume = volume of material
+
+        Methods:
+          mass() = mass of the material
+          find(isotope) = Search for isotope by name
+          heat() = heat content in W
+          gammaHeat() = heat content due to photons in W
+          neutronProduction() = neutron production rate in N/s
+          externalDose() = external dose rate in Sv/hr at 1 meter
         """
 
         self.isotopes = {}
         self.volume = None
 
     def mass(self):
-        """Return the total mass of the material"""
+        """Return the total mass of the material in kg"""
 
         total_mass = 0
-        for iso in self.isotopes:
+        for iso in self.isotopes.values():
             total_mass += iso.mass
         return total_mass
 
@@ -37,8 +46,8 @@ class Material():
                 return self.isotopes[key]
         return None
 
-    def heatingRate(self):
-        """Return the heating rate of the material in W/kg"""
+    def heat(self):
+        """Return the heat content of the material in W"""
 
         rate = 0.0
         for key in self.isotopes:
@@ -47,8 +56,8 @@ class Material():
                 rate += isotope.mass * parameters.data[key.upper()][0]
         return rate
 
-    def gammaHeatingRate(self):
-        """Return the photon heating rate of the material in W/kg"""
+    def gammaHeat(self):
+        """Return the heat content of the material due to photons in W"""
 
         rate = 0.0
         for key in self.isotopes:
@@ -57,7 +66,7 @@ class Material():
                 rate += isotope.mass * parameters.data[key.upper()][1]
         return rate
 
-    def neutronRate(self):
+    def neutronProduction(self):
         """Return the photon heating rate of the material in N/s"""
 
         rate = 0.0

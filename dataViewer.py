@@ -76,7 +76,8 @@ class DataViewer(QDialog):
         self.dataTree.clear()
         material = self.cycles[i].materials[(timestep,material)]
         self.volume.setText("{0:10.4e}".format(material.volume))
-        self.heatRate.setText("{0:10.4e}".format(material.heatingRate()))
+        self.heatRate.setText("{0:10.4e}".format(
+                material.heat() / material.mass()))
         isotopes = material.isotopes.keys()
         isotopes.sort()
         for name in isotopes:
