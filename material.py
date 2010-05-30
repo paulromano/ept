@@ -35,11 +35,23 @@ class Material():
         self.absorptionRate = None
         self.diffRate = None
 
-    def mass(self):
-        """Return the total mass of the material in kg"""
+    def mass(self, Actinide = False, Fissile = False):
+        """
+        Return the total mass of the material in kg
+
+        If the Actinide argument is True, only includes isotopes that
+        are actinides
+
+        If the Fissile argument is True, only includes isotopes that
+        are fissile
+        """
 
         total_mass = 0
         for iso in self.isotopes.values():
+            if Actinide and not isotope.isActinide():
+                continue
+            if Fissile and not isotope.isFissile():
+                continue
             total_mass += iso.mass
         return total_mass
 
@@ -54,37 +66,40 @@ class Material():
                 return self.isotopes[key]
         return None
 
-    def heat(self):
+    def heat(self, MA = False):
         """Return the heat content of the material in W"""
 
         rate = 0.0
         for key in self.isotopes:
             if key.upper() in parameters.data:
                 isotope = self.isotopes[key]
-                rate += isotope.mass * parameters.data[key.upper()][0]
+                if not MA or isotope.isMinorActinide():
+                    rate += isotope.mass * parameters.data[key.upper()][0]
         return rate
 
-    def gammaHeat(self):
+    def gammaHeat(self, MA = False):
         """Return the heat content of the material due to photons in W"""
 
         rate = 0.0
         for key in self.isotopes:
             if key.upper() in parameters.data:
                 isotope = self.isotopes[key]
-                rate += isotope.mass * parameters.data[key.upper()][1]
+                if not MA or isotope.isMinorActinide():
+                    rate += isotope.mass * parameters.data[key.upper()][1]
         return rate
 
-    def neutronProduction(self):
+    def neutronProduction(self, MA = False):
         """Return the photon heating rate of the material in N/s"""
 
         rate = 0.0
         for key in self.isotopes:
             if key.upper() in parameters.data:
                 isotope = self.isotopes[key]
-                rate += isotope.mass * parameters.data[key.upper()][2]
+                if not MA or isotope.isMinorActinide():
+                    rate += isotope.mass * parameters.data[key.upper()][2]
         return rate
 
-    def externalDose(self):
+    def externalDose(self, MA = False):
         """
         Return the external dose rate of the material in Sv/hr at
         1-meter
@@ -94,7 +109,8 @@ class Material():
         for key in self.isotopes:
             if key.upper() in parameters.data:
                 isotope = self.isotopes[key]
-                rate += isotope.mass * parameters.data[key.upper()][3]
+                if not MA or isotope.isMinorActinide():
+                    rate += isotope.mass * parameters.data[key.upper()][3]
         return rate
 
     def criticalMass(self):
@@ -122,3 +138,4 @@ class Material():
                           (self.nuFissionRate - self.absorptionRate))
             return 4./3. * math.pi * R**3 * self.mass()/self.volume
         return None
+

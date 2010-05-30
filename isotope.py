@@ -11,8 +11,19 @@ class Isotope():
         """
         Create new instance of an isotope
 
-        name = isotope name, e.g. Am241m
-        mass = mass of isotope in kg
+        Attributes:
+          name = isotope name, e.g. Am241m
+          element = atomic symbol, e.g. Am
+          Z = atomic number
+          A = mass number
+          meta = boolean indicating whether metastable
+          mass = mass of isotope in kg
+
+        Methods:
+          origenID() = ORIGIN identified ZZAAAM
+          isActinide() = determine if actinide
+          isMinorActinide() = determine if minor actinide
+          isFissile() = determine if fissile
         """
 
         # Parse isotope name
@@ -36,7 +47,49 @@ class Isotope():
 
         return 10000*self.Z + 10*self.A + (1 if self.meta else 0)
 
+    def isActinide(self):
+        """
+        Determine whether the isotope is an actinide. Returns a
+        boolean
+        """
 
+        # We define an actinide as any isotope with Z >= 90
+        if self.Z >= 90:
+            return True
+        else:
+            return False
+        
+
+    def isMinorActinide(self):
+        """
+        Determine whether the isotope is a minor actinide. Returns a
+        boolean
+        """
+
+        # We define a minor actinide as any actinide above Th-232
+        # excluding any isotopes of U and Pu
+        if self.Z >= 90 and self.Z != 92 and self.Z != 94:
+            if self.A >= 232:
+                return True
+        return False
+
+    def isFissile(self):
+        """
+        Determine whether isotope is fissile. Returns a boolean.
+
+        Only those isotopes without short half-lives are considered to
+        be fissile. This includes U233, U235, Pu239, Pu241, Am242m,
+        Cm243, Cm245, Cm247, Cf249, and Cf251.
+        """
+
+        if self.name.upper() in fissileIsotopes:
+            return True
+        else:
+            return False
+
+
+fissileIsotopes = ["U233", "U235", "PU239", "PU241", "AM242M",
+                   "CM243", "CM245", "CM247", "CF249", "CF251"]
 
 ElementToZ = {"H":   1, "HE":  2, "LI":  3, "BE":  4, "B":   5,
               "C":   6, "N":   7, "O":   8, "F":   9, "NE": 10,
