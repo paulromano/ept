@@ -12,7 +12,6 @@ class Isotope():
         Create new instance of an isotope
 
         Attributes:
-          name = isotope name, e.g. Am241m
           element = atomic symbol, e.g. Am
           Z = atomic number
           A = mass number
@@ -20,6 +19,7 @@ class Isotope():
           mass = mass of isotope in kg
 
         Methods:
+          __str__() = isotope name, e.g. Am241m
           origenID() = ORIGIN identified ZZAAAM
           isActinide() = determine if actinide
           isMinorActinide() = determine if minor actinide
@@ -82,7 +82,7 @@ class Isotope():
         Cm243, Cm245, Cm247, Cf249, and Cf251.
         """
 
-        if self.name.upper() in fissileIsotopes:
+        if self.__str__().upper() in fissileIsotopes:
             return True
         else:
             return False

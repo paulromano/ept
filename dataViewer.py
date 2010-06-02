@@ -20,7 +20,7 @@ class DataViewer(QDialog):
         super(DataViewer, self).__init__(parent)
         self.cycles = cycles
 
-        # Create widgets
+        # Create material selector widgets/layout
         cycleLabel = QLabel("Cycle:")
         self.cycleCombo = QComboBox()
         self.cycleCombo.addItems([str(i+1) for i in range(len(cycles))])
@@ -28,50 +28,60 @@ class DataViewer(QDialog):
         self.timeCombo = QComboBox()
         matLabel = QLabel("Material:")
         self.matCombo = QComboBox()
-        volLabel = QLabel("Volume:")
-        self.volume = QLabel()
-        heatLabel = QLabel("Heat Rate (W/kg):")
-        self.heatRate = QLabel()
-        gammaHeatLabel = QLabel("Photon Heat Rate (W/kg):")
-        self.gammaHeatRate = QLabel()
-        neutronLabel = QLabel("Neutron Rate (N/s/kg):")
-        self.neutronRate = QLabel()
-        doseLabel = QLabel("External Dose Rate (Sv/hr/kg at 1 m):")
-        self.doseRate = QLabel()
-        critLabel = QLabel("Critical Mass (kg):")
-        self.critMass = QLabel()
+        topLayout = QGridLayout()
+        topLayout.addWidget(cycleLabel,0,0)
+        topLayout.addWidget(self.cycleCombo,1,0)
+        topLayout.addWidget(timeLabel,0,1)
+        topLayout.addWidget(self.timeCombo,1,1)
+        topLayout.addWidget(matLabel,0,2)
+        topLayout.addWidget(self.matCombo,1,2)
+
+        # Create property selector widgets/layout
+        propLabel = QLabel("Property:")
+        self.propCombo = QComboBox()
+        self.propCombo.addItems([
+                "Mass (kg)",
+                "Volume (cm3)",
+                "Heat rate (W/kg)",
+                "Heat rate, MA only (W/kg)",
+                "Photon heat rate (W/kg)",
+                "Photon heat rate, MA only (W/kg)",
+                "Neutron rate (N/s/kg)",
+                "Neutron rate, MA only (N/s/kg)",
+                "External dose rate (Sv/hr/kg at 1 m)",
+                "External dose rate, MA only (Sv/hr/kg at 1 m)",
+                "Critical mass (kg)",
+                "Fissile mass / total actinide mass"])
+        valueLabel = QLabel("Value:")
+        self.propValue = QLabel()
+        propLayout = QGridLayout()
+        propLayout.addWidget(propLabel,0,0)
+        propLayout.addWidget(self.propCombo,0,1)
+        propLayout.addWidget(valueLabel,1,0)
+        propLayout.addWidget(self.propValue,1,1)
+
+        # Create material data tree
         self.dataTree = QTreeWidget()
         self.dataTree.setColumnCount(2)
         self.dataTree.setHeaderLabels(["Isotope", "Mass (kg)"])
         self.dataTree.setSelectionMode(QAbstractItemView.ContiguousSelection)
 
-        # Set Layout
-        layout = QGridLayout()
-        layout.addWidget(cycleLabel,0,0)
-        layout.addWidget(self.cycleCombo,0,1)
-        layout.addWidget(timeLabel,1,0)
-        layout.addWidget(self.timeCombo,1,1)
-        layout.addWidget(matLabel,2,0)
-        layout.addWidget(self.matCombo,2,1)
-        layout.addWidget(volLabel,3,0)
-        layout.addWidget(self.volume,3,1)
-        layout.addWidget(heatLabel,4,0)
-        layout.addWidget(self.heatRate,4,1)
-        layout.addWidget(gammaHeatLabel,5,0)
-        layout.addWidget(self.gammaHeatRate,5,1)
-        layout.addWidget(neutronLabel,6,0)
-        layout.addWidget(self.neutronRate,6,1)
-        layout.addWidget(doseLabel,7,0)
-        layout.addWidget(self.doseRate,7,1)
-        layout.addWidget(critLabel,8,0)
-        layout.addWidget(self.critMass,8,1)
-        layout.addWidget(self.dataTree,9,0,1,2)
+        # Setup Layout
+        line = QFrame(self)
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        layout = QVBoxLayout()
+        layout.addLayout(topLayout)
+        layout.addWidget(line)
+        layout.addLayout(propLayout)
+        layout.addWidget(self.dataTree)
         self.setLayout(layout)
         self.setWindowTitle("View ERANOS Data")
 
         # Set connections
         self.connect(self.cycleCombo, SIGNAL("activated(int)"),
                      self.cycleChanged)
+        self.connect(self.propCombo, SIGNAL("activated(int)"), self.update)
         self.connect(self.timeCombo, SIGNAL("activated(int)"), self.update)
         self.connect(self.matCombo, SIGNAL("activated(int)"), self.update)
 
@@ -88,23 +98,49 @@ class DataViewer(QDialog):
         timestep = eval(str(self.timeCombo.currentText()))
         material = str(self.matCombo.currentText())
 
+        # Set property value label
+        material = self.cycles[i].materials[(timestep,material)]
+        pv = self.propValue
+        if self.propCombo.currentIndex() == 0:
+            pv.setText("{0:10.4e}".format(material.mass()))
+        if self.propCombo.currentIndex() == 1:
+            pv.setText("{0:10.4e}".format(material.volume))
+        if self.propCombo.currentIndex() == 2:
+            pv.setText("{0:10.4e}".format(
+                    material.heat() / material.mass() ))
+        if self.propCombo.currentIndex() == 3:
+            pv.setText("{0:10.4e}".format(
+                    material.heat(True) / material.mass() ))
+        if self.propCombo.currentIndex() == 4:
+            pv.setText("{0:10.4e}".format(
+                    material.gammaHeat() / material.mass() ))
+        if self.propCombo.currentIndex() == 5:
+            pv.setText("{0:10.4e}".format(
+                    material.gammaHeat(True) / material.mass() ))
+        if self.propCombo.currentIndex() == 6:
+            pv.setText("{0:10.4e}".format(
+                    material.neutronProduction() / material.mass() ))
+        if self.propCombo.currentIndex() == 7:
+            pv.setText("{0:10.4e}".format(
+                    material.neutronProduction(True) / material.mass() ))
+        if self.propCombo.currentIndex() == 8:
+            pv.setText("{0:10.4e}".format(
+                    material.externalDose() / material.mass() ))
+        if self.propCombo.currentIndex() == 9:
+            pv.setText("{0:10.4e}".format(
+                    material.externalDose(True) / material.mass() ))
+        if self.propCombo.currentIndex() == 10:
+            if material.criticalMass():
+                pv.setText("{0:10.4e}".format(material.criticalMass()))
+            else:
+                pv.setText("")
+        if self.propCombo.currentIndex() == 11:
+            pv.setText("{0:10.4e}".format(
+                    material.mass(Fissile = True) / 
+                    material.mass(Actinide = True)))
+ 
         # Populate material tree
         self.dataTree.clear()
-        material = self.cycles[i].materials[(timestep,material)]
-        self.volume.setText("{0:10.4e}".format(material.volume))
-        self.heatRate.setText("{0:10.4e}".format(
-                material.heat() / material.mass()))
-        self.gammaHeatRate.setText("{0:10.4e}".format(
-                material.gammaHeat() / material.mass()))
-        self.neutronRate.setText("{0:10.4e}".format(
-                material.neutronProduction() / material.mass()))
-        self.doseRate.setText("{0:10.4e}".format(
-                material.externalDose() / material.mass()))
-        if material.criticalMass():
-            self.critMass.setText("{0:10.4e}".format(
-                material.criticalMass()))
-        else:
-            self.critMass.setText("")
         isotopes = material.isotopes.keys()
         isotopes.sort()
         for name in isotopes:

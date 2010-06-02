@@ -47,12 +47,12 @@ class Material():
         """
 
         total_mass = 0
-        for iso in self.isotopes.values():
+        for isotope in self.isotopes.values():
             if Actinide and not isotope.isActinide():
                 continue
             if Fissile and not isotope.isFissile():
                 continue
-            total_mass += iso.mass
+            total_mass += isotope.mass
         return total_mass
 
     def find(self, isotope):
