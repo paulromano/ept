@@ -139,6 +139,8 @@ def readMaterial(fh):
         words = fh.readline().split()
         if len(words) == 1: break
         name = words[1]
+        if name == "Am242g":
+            name = "Am242"
         original_mass = eval(words[3])
         if name[0:3] == "sfp":
             name = name[3:].upper()
@@ -147,7 +149,7 @@ def readMaterial(fh):
             for nrow, row in enumerate(sfp):
                 if nrow == 0:
                     # Determine which column to use
-                    column = [i.upper() for i in row].index(name)
+                    column = row.index(name)
                     continue
                 if nrow > 0:
                     name = row[0]
