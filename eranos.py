@@ -18,7 +18,7 @@ from isotope import Isotope
 from material import Material
 from cycle import Cycle
 from fileIO import fileReSeek
-from parameters import sfp
+from parameters import pf
 
 def loadData(filename, parent=None):
     """
@@ -146,7 +146,7 @@ def readMaterial(fh):
             name = name[3:].upper()
             if name == "AM242":
                 name = "AM242M"
-            for nrow, row in enumerate(sfp):
+            for nrow, row in enumerate(pf):
                 if nrow == 0:
                     # Determine which column to use
                     column = row.index(name)
