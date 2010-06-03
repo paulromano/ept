@@ -49,12 +49,12 @@ def loadData(filename, parent=None):
     
     # Determine default cooling period
     position = eranosFile.tell()
-    m = fileReSeek(eranosFile, "^->COOLING\s+(\d+).*")
+    m = fileReSeek(eranosFile, "^->COOLINGTIME\s+(\d+).*")
     if m:
-        default_cooling = eval(m.groups()[0])
+        cooling_time = eval(m.groups()[0])
     else:
-        default_cooling = None
-    eranosFile.seek(position)
+        cooling_time = None
+        eranosFile.seek(position)
 
     # Determine cycle information
     while True:
@@ -67,13 +67,6 @@ def loadData(filename, parent=None):
         m = fileReSeek(eranosFile, "^->ITER\s(\d+).*")
         iterations = int(m.groups()[0])
         # Determine cooling period
-        position = eranosFile.tell()
-        m = fileReSeek(eranosFile, "^->COOLING\s+(\d+).*")
-        if m:
-            cooling_time = eval(m.groups()[0])
-        else:
-            cooling_time = default_cooling
-            eranosFile.seek(position)
         cycles.append(Cycle(n, timestep, iterations, cooling_time))
     eranosFile.seek(0)
 
