@@ -21,12 +21,21 @@ class Material():
 
         Methods:
           mass() = mass of the material
+          SQ() = significant quantities of material
           find(isotope) = Search for isotope by name
           heat() = heat content in W
           gammaHeat() = heat content due to photons in W
           neutronProduction() = neutron production rate in N/s
           externalDose() = external dose rate in Sv/hr at 1 meter
           criticalMass() = critical mass of bare sphere in kg
+
+          bathke1()
+          bathke2()
+          charlton1()
+          charlton2()
+          charlton3()
+          charlton4()
+          charlton5()
         """
 
         self.isotopes = {}
@@ -54,6 +63,24 @@ class Material():
                 continue
             total_mass += isotope.mass
         return total_mass
+
+    def SQ(self):
+        """
+        Return the number of 'significant quantities' (SQs) in the
+        material
+        """
+
+        massPu = 0.0
+        massNp = 0.0
+        massU  = 0.0
+        for isotope in self.isotopes.values():
+            if isotope.Z == 94:
+                massPu += isotope.mass
+            elif str(isotope) == "Np237":
+                massNp += isotope.mass
+            elif isotope.Z == 92:
+                massU += isotope.mass
+        return massPu/8.0 + massNp/25.0 + massU/75.0
 
     def find(self, isotope):
         """
@@ -89,7 +116,7 @@ class Material():
         return rate
 
     def neutronProduction(self, MA = False):
-        """Return the photon heating rate of the material in N/s"""
+        """Return the neutron production rate of the material in N/s"""
 
         rate = 0.0
         for key in self.isotopes:
@@ -138,4 +165,139 @@ class Material():
                           (self.nuFissionRate - self.absorptionRate))
             return 4./3. * math.pi * R**3 * self.mass()/self.volume
         return None
+
+    def bathke1(self):
+        """
+        Returns the first metric in the GLOBAL '09 paper, The
+        Attractiveness of Materials in Advanced Nuclear Fuel Cycles
+        for Various Proliferation and Theft Scenarios
+        """
+
+        M = self.criticalMass()
+        if not M:
+            return None
+        h = self.heat()/self.mass()
+        # Convert dose to rad (assume 1 rad = 1 rem)
+        D = 0.2 * 100 * self.externalDose()
+        return 1.0 - math.log10(M/800.0 + M*h/4500.0 + M/50.0 * 
+                                (D/500.0)**(1.0/math.log10(2.0)))
+
+    def bathke2(self):
+        """
+        Returns the second metric in the GLOBAL '09 paper, The
+        Attractiveness of Materials in Advanced Nuclear Fuel Cycles
+        for Various Proliferation and Theft Scenarios
+        """
+
+        M = self.criticalMass()
+        if not M:
+            return None
+        h = self.heat()/self.mass()
+        S = self.neutronProduction()/self.mass()
+        # Convert dose to rad (assume 1 rad = 1 rem)
+        D = 0.2 * 100 * self.externalDose()
+        return 1.0 - math.log10(M/800.0 + M*h/4500.0 + M*S/6.8e6 + 
+                                M/50.0 * (D/500.0)**(1.0/math.log10(2.0)))
+
+    def charlton1(self):
+        """
+        Determine u_1 from Charlton et al.
+
+        The attractiveness level of the fuel being analyzed is always
+        'C' so we just need to determine which category the fuel is
+        in based on the Pu+U233 mass.
+        """
+
+        massPuU233 = 0
+        massU235 = 0
+        for isotope in self.isotopes.values():
+            if isotope.Z == 94 or str(isotope) == "U233":
+                massPuU233 += isotope.mass
+            if str(isotope) == "U235":
+                massU235 += isotope.mass
+
+        # Evaluate Pu/U233 Category
+        if massPuU233 < 0.4:
+            u = 0.45 # Category IV
+        elif massPuU233 >= 0.4 and massPuU233 < 2:
+            u = 0.35 # Category III
+        elif massPuU233 >= 2 and massPuU233 <6:
+            u = 0.25 # Category II
+        else:
+            u = 0.15 # Category I
+
+        # Evaluate U235 Category
+        if massU235 < 2:
+            u_ = 0.45 # Category IV
+        elif massU235 >= 2 and massU235 < 6:
+            u_ = 0.35 # Category III
+        elif massU235 >= 6 and massU235 < 20:
+            u_ = 0.25 # Category II
+        else:
+            u_ = 0.15 # Category I
+
+        # Choose lowest category
+        return min(u,u_)
+
+    def charlton2(self):
+        """
+        Determine u_2 from Charlton et al.
+        """
+
+        rate = 0.0
+        mass = 0.0
+        for key in self.isotopes:
+            if key.upper() in parameters.data:
+                isotope = self.isotopes[key]
+                if isotope.Z == 94:
+                    rate += isotope.mass * parameters.data[key.upper()][0]
+                    mass += isotope.mass
+        x = rate/mass
+        return 1 - math.exp(-3.0*(x/570.0)**0.8)
+
+    def charlton3(self):
+        """
+        Determine u_3 from Charlton et al.
+        """
+
+        evenMass = 0
+        totalMass = 0
+        for isotope in self.isotopes.values():
+            if isotope.Z == 94:
+                totalMass += isotope.mass
+                if isotope.A % 2 == 0:
+                    evenMass += isotope.mass
+        if totalMass > 0:
+            x = evenMass / totalMass
+        else:
+            x = 0
+        return 1 - math.exp(-3.5*x**1.8)
+
+    def charlton4(self):
+        """
+        Determine u_4 from Charlton et al.
+        """
+
+        x = self.SQ() / self.mass() * 1000
+        if x < 0.01:
+            return 1
+        else:
+            return math.exp(-2.5*(x/125.0))
+
+    def charlton5(self):
+        """
+        Determine u_5 from Charlton et al.
+        """
+
+        x = 100 * self.externalDose() / self.SQ()
+        if x <= 0.2:
+            return 0
+        elif x > 0.2 and x <= 5:
+            return 0.0520833*x - 0.010416
+        elif x > 5 and x <= 75:
+            return 0.0035714*x + 0.232143
+        elif x > 75 and x <= 600:
+            return 0.00095238*x + 0.428571
+        else:
+            return 1
 

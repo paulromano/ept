@@ -49,9 +49,16 @@ def loadData(filename, parent=None):
     
     # Determine default cooling period
     position = eranosFile.tell()
-    m = fileReSeek(eranosFile, "^->COOLINGTIME\s+(\d+).*")
+    m = fileReSeek(eranosFile, "^->COOLINGTIME\s+(\S+).*")
     if m:
-        cooling_time = eval(m.groups()[0])
+        try:
+            cooling_time = eval(m.groups()[0])
+        except:
+            cooling_time = 30
+            QMessageBox.warning(parent, "Default Cooling", 
+                                "Could not evaluate cooling time. Setting a "
+                                "default value of 30 days. This can be changed "
+                                "from Edit > Cooling Time...")
     else:
         cooling_time = None
         eranosFile.seek(position)
@@ -79,12 +86,14 @@ def loadData(filename, parent=None):
     progress = QProgressDialog("Loading ERANOS Data...",
                                "Cancel", 0, n_materials, parent)
     progress.setWindowModality(Qt.WindowModal)
+    progress.setWindowTitle("Loading...")
     progress.setMinimumDuration(0)
     progress.setValue(0)
 
     pValue = 0
     for cycle in cycles:
         # Determine critical mass
+        fileReSeek(eranosFile, " ECCO6.*")
         xsDict = {}
         for i in fuelNames:
             m = fileReSeek(eranosFile, "\sREGION :(FUEL\d+|BLANK)\s*")
@@ -100,7 +109,7 @@ def loadData(filename, parent=None):
         m = fileReSeek(eranosFile, ".*M A T E R I A L   B A L A N C E.*")
 
         # Find TIME block and set time
-        for time in cycle.times():
+        for node, time in enumerate(cycle.times()):
             # Progress bar
             QCoreApplication.processEvents()
             if (progress.wasCanceled()):
@@ -119,12 +128,23 @@ def loadData(filename, parent=None):
                     material.nuFissionRate = xsDict[name][0]
                     material.absorptionRate = xsDict[name][1]
                     material.diffRate = xsDict[name][2]
-                cycle.materials[(time,name)] = material
+                cycle.materials[(node,name)] = material
                 # Set progress bar value
                 pValue += 1
                 progress.setValue(pValue)
                 #print((cycle.n, time, name)) # Only for debugging
 
+    # Determine reaction rates for blanket from ECCO_BLANK
+    node = len(cycle.times()) - 1
+    fileReSeek(eranosFile, "1 REGION :BLANK.*")
+    m = fileReSeek(eranosFile,"\s*TOTAL\s+(\S+)\s+(\S+)\s+\S+\s+(\S+).*")
+    if m:
+        material = cycle.materials[(node,"BLANK")]
+        material.nuFissionRate = eval(m.groups()[0])
+        material.absorptionRate = eval(m.groups()[1])
+        material.diffRate = eval(m.groups()[2])
+
+    # Close file and return
     eranosFile.close()
     return cycles
            
@@ -190,11 +210,11 @@ def writeData(filename, cycles):
     # Write data from materials dictionary
     # TODO: encapsulate some of this logic in a Material object method?
     for cycle in cycles:
-        for time in cycle.times():
+        for node, time in enumerate(cycle.times()):
             for name in materialNames:
                 fh.write("Cycle {0} Time {1} {2}\n".format(
                         cycle.n, time, name))
-                material = cycle.materials[(time,name)]
+                material = cycle.materials[(node,name)]
                 fh.write("    Volume = {0}\n".format(material.volume))
                 fh.write("    Heating Rate = {0} W/kg\n".format(
                         material.heat()/material.mass()))
@@ -206,6 +226,20 @@ def writeData(filename, cycles):
                         material.externalDose()/material.mass()))
                 fh.write("    Critical Mass = {0} kg\n".format(
                         material.criticalMass()))
+                fh.write("    Charlton: DOE Attrativeness (u1) = {0}\n".format(
+                        material.charlton1()))
+                fh.write("    Charlton: Pu Heating Rate (u2) = {0}\n".format(
+                        material.charlton2()))
+                fh.write("    Charlton: Weight Fraction of Even Pu (u3) = {0}\n".format(
+                        material.charlton3()))
+                fh.write("    Charlton: Concentration (u4) = {0}\n".format(
+                        material.charlton4()))
+                fh.write("    Charlton: Dose Rates (u5) = {0}\n".format(
+                        material.charlton5()))
+                fh.write("    Bathke: Sub-national (FOM1) = {0}\n".format(
+                        material.bathke1()))
+                fh.write("    Bathke: Unadvanced Nation (FOM2) = {0}\n".format(
+                        material.bathke2()))
                 for isotope in material.isotopes.values():
                     fh.write("    {0:7} {1:12.6e} kg\n".format(
                             str(isotope) + ":", isotope.mass))

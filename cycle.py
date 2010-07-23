@@ -14,7 +14,7 @@ class Cycle():
         iterations = number of timesteps
 
         materials is a dictionary of the form:
-            {(time, material): <Material instance>, ...}
+            {(timenode, material): <Material instance>, ...}
         """
 
         # Set cycle attributes
