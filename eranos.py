@@ -52,7 +52,11 @@ def loadData(filename, parent=None):
     m = fileReSeek(eranosFile, "^->COOLINGTIME\s+(\S+).*")
     if m:
         try:
-            cooling_time = eval(m.groups()[0])
+            if m.groups()[0][:6] == "(PASSE":
+                auto_cooling = True
+            else:
+                auto_cooling = False
+                cooling_time = eval(m.groups()[0])
         except:
             cooling_time = 30
             QMessageBox.warning(parent, "Default Cooling", 
@@ -74,6 +78,8 @@ def loadData(filename, parent=None):
         m = fileReSeek(eranosFile, "^->ITER\s(\d+).*")
         iterations = int(m.groups()[0])
         # Determine cooling period
+        if auto_cooling:
+            cooling_time = timestep*iterations*0.15/0.85
         cycles.append(Cycle(n, timestep, iterations, cooling_time))
     eranosFile.seek(0)
 
