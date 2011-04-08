@@ -14,13 +14,13 @@ import math
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
-from isotope import Isotope
+from isotope import Isotope, FissionProduct
 from material import Material
 from cycle import Cycle
 from fileIO import fileReSeek
 from parameters import pf
 
-def loadData(filename, parent=None):
+def loadData(filename, parent=None, gui=True):
     """
     Loads material data from an ERANOS output file.
 
@@ -56,13 +56,9 @@ def loadData(filename, parent=None):
                 auto_cooling = True
             else:
                 auto_cooling = False
-                cooling_time = eval(m.groups()[0])
+                cooling_time = float(m.groups()[0])
         except:
             cooling_time = 30
-            QMessageBox.warning(parent, "Default Cooling", 
-                                "Could not evaluate cooling time. Setting a "
-                                "default value of 30 days. This can be changed "
-                                "from Edit > Cooling Time...")
     else:
         cooling_time = None
         eranosFile.seek(position)
@@ -89,15 +85,18 @@ def loadData(filename, parent=None):
         n_materials += len(cycle.times())*len(fuelNames)
     
     # Create progress bar
-    progress = QProgressDialog("Loading ERANOS Data...",
-                               "Cancel", 0, n_materials, parent)
-    progress.setWindowModality(Qt.WindowModal)
-    progress.setWindowTitle("Loading...")
-    progress.setMinimumDuration(0)
-    progress.setValue(0)
-
+    if gui:
+        progress = QProgressDialog("Loading ERANOS Data...",
+                                   "Cancel", 0, n_materials, parent)
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setWindowTitle("Loading...")
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
+        
     pValue = 0
     for cycle in cycles:
+        print("Cycle {0}".format(cycle.n))
+
         # Determine critical mass
         fileReSeek(eranosFile, " ECCO6.*")
         xsDict = {}
@@ -106,9 +105,9 @@ def loadData(filename, parent=None):
             name = m.groups()[0]
             m = fileReSeek(eranosFile,
                            "\s*TOTAL\s+(\S+)\s+(\S+)\s+\S+\s+(\S+).*")
-            nuSigmaF = eval(m.groups()[0])
-            SigmaA = eval(m.groups()[1])
-            Diff = eval(m.groups()[2])
+            nuSigmaF = float(m.groups()[0])
+            SigmaA = float(m.groups()[1])
+            Diff = float(m.groups()[2])
             xsDict[name] = (nuSigmaF, SigmaA, Diff)
 
         # Find beginning of cycle
@@ -117,15 +116,16 @@ def loadData(filename, parent=None):
         # Find TIME block and set time
         for node, time in enumerate(cycle.times()):
             # Progress bar
-            QCoreApplication.processEvents()
-            if (progress.wasCanceled()):
-                return None
+            if gui:
+                QCoreApplication.processEvents()
+                if (progress.wasCanceled()):
+                    return None
 
             # Loop over fuel names
             for i in fuelNames:
                 m = fileReSeek(eranosFile,"\s+MATERIAL\s(FUEL\d+|BLANK)\s+")
                 name = m.groups()[0]
-                volume = eval(eranosFile.readline().split()[-1])
+                volume = float(eranosFile.readline().split()[-1])
                 for n in range(5): eranosFile.readline()
                 # Read in material data
                 material = readMaterial(eranosFile)
@@ -137,23 +137,161 @@ def loadData(filename, parent=None):
                 cycle.materials[(node,name)] = material
                 # Set progress bar value
                 pValue += 1
-                progress.setValue(pValue)
+                if gui:
+                    progress.setValue(pValue)
                 #print((cycle.n, time, name)) # Only for debugging
 
-    # Determine reaction rates for blanket from ECCO_BLANK
-    node = len(cycle.times()) - 1
-    fileReSeek(eranosFile, "1 REGION :BLANK.*")
-    m = fileReSeek(eranosFile,"\s*TOTAL\s+(\S+)\s+(\S+)\s+\S+\s+(\S+).*")
-    if m:
-        material = cycle.materials[(node,"BLANK")]
-        material.nuFissionRate = eval(m.groups()[0])
-        material.absorptionRate = eval(m.groups()[1])
-        material.diffRate = eval(m.groups()[2])
+
+        # TODO: Performing two file searches seems to very costly in
+        # the next block- would be good to have a method that can
+        # search multiple regex's
+
+        # Read uranium added/required feed
+        for i in range(3):
+            # Determine if there is additional mass or not enough
+            position = eranosFile.tell()
+            m1 = fileReSeek(eranosFile," 'REQUIRED FEED FOR FUEL (\d).*")
+            rPosition = eranosFile.tell()
+
+            eranosFile.seek(position)
+            m2 = fileReSeek(eranosFile," 'ADDITIONAL FEED FOR FUEL (\d).*")
+            aPosition = eranosFile.tell()
+
+            if rPosition < aPosition:
+                # We don't have enough fissile material
+                cycle.extraMass = False
+                eranosFile.seek(rPosition)
+                mat = "FUEL{0}".format(m1.groups()[0])
+                m = fileReSeek(eranosFile," ->REPLMASS2\s+(\S+).*")
+                cycle.requiredFeed += float(m.groups()[0])
+                m = fileReSeek(eranosFile," ->REPLMASS1\s+(\S+).*")
+                cycle.uraniumAdded[mat] = float(m.groups()[0])
+            else:
+                # Additional mass was produced
+                cycle.extraMass = True
+                mat = "FUEL{0}".format(m2.groups()[0])
+                m = fileReSeek(eranosFile," ->EXTRA\s+(\S+).*")
+                cycle.additionalFeed[mat] = float(m.groups()[0])
+                m = fileReSeek(eranosFile," ->REPLMASS\s+(\S+).*")
+                cycle.uraniumAdded[mat] = float(m.groups()[0])
+
+    # Create charge and discharge vectors based on additional/required
+    # feed and uranium added values read in
+    for cycle in cycles:
+        cycle.discharge = Material()
+        cycle.charge = Material()
+
+        blank = cycle.materials[0,"BLANK"]
+        if blank.isotopes["sfpU235"].mass < 1e-6:
+            # Add blanket from previous cycle to discharge vector
+            if cycle.n > 1:
+                prevCycle = cycles[cycle.n - 2] # since n is indexed from 1
+                time = len(prevCycle.times()) - 1
+                prevBlank = prevCycle.materials[time, "BLANK"]
+                for iso in prevBlank:
+                    if type(iso) == FissionProduct:
+                        prevCycle.discharge.addMass(str(iso), iso.mass, True)
+                    else:
+                        prevCycle.discharge.addMass(str(iso), iso.mass)
+                prevCycle.discharge.expandFPs()
+
+            # Add next blanket to charge vector
+            for iso in blank:
+                if type(iso) == FissionProduct:
+                    cycle.charge.addMass(str(iso), iso.mass, True)
+                else:
+                    cycle.charge.addMass(str(iso), iso.mass)
+            cycle.charge.expandFPs()
+
+        for fuelName in cycle.uraniumAdded:
+            time = len(cycle.times()) - 1
+            mat = cycle.materials[time, fuelName]
+            
+            # Add depleted uranium to charge
+            total_removed = cycle.uraniumAdded[fuelName]
+            cycle.charge.addMass("U235", 0.002*total_removed)
+            cycle.charge.addMass("U238", 0.998*total_removed)
+
+            # Add fission products to discharge
+            total_fp_mass = sum([fp.mass for fp in mat.fissionProducts()])
+            for fp in mat.fissionProducts():
+                fpMass = total_removed*fp.mass/total_fp_mass
+                cycle.discharge.addMass(fp.name, fpMass, True)
+
+        # Expand FPs in discharge vector
+        cycle.discharge.expandFPs()
+
+
+        if cycle.extraMass:
+            # Add extra actinides to discharge vector
+            for fuelName in cycle.additionalFeed:
+                time = len(cycle.times()) - 1
+                mat = cycle.materials[time, fuelName]
+
+                extra_mass = cycle.additionalFeed[fuelName]
+
+                # determine total mass of actinides
+                total_ac_mass = 0
+                for iso in mat:
+                    if type(iso) == Isotope:
+                        total_ac_mass += iso.mass
+
+                # add to discharge vector
+                for iso in mat:
+                    if type(iso) == Isotope:
+                        acMass = extra_mass * iso.mass/total_ac_mass
+                        cycle.discharge.addMass(str(iso), acMass)
+
+        else:
+
+            # Add minor actinides to charge vector
+            for name, frac in [("Np237", 0.0588), ("Pu238", 0.0271),
+                               ("Pu239", 0.4905), ("Pu240", 0.2400),
+                               ("Pu241", 0.1092), ("Pu242", 0.0744)]:
+                cycle.charge.addMass(name, frac*cycle.requiredFeed)
+    
+    try:
+        # Determine reaction rates for FUEL3, FUEL6, FUEL9, and
+        # BLANK. First we need to load material balance data. Is this
+        # just reading the same data as the last timestep of the last
+        # cycle???
+        n = len(cycles) + 1
+        cycle = Cycle(n, 0, 0, 0)
+        cycles.append(cycle)
+        for i in fuelNames:
+            m = fileReSeek(eranosFile,"\s+MATERIAL\s(FUEL\d+|BLANK)\s+")
+            name = m.groups()[0]
+            volume = float(eranosFile.readline().split()[-1])
+            for n in range(5): eranosFile.readline()
+            # Read in material data
+            material = readMaterial(eranosFile)
+            material.volume = volume
+            cycle.materials[(0,name)] = material
+
+        # Now read fission, absorption, and diffusion rates to be able to
+        # determine the critical mass
+        fuelNames = ['FUEL3', 'FUEL6', 'FUEL9', 'BLANK']
+        fileReSeek(eranosFile, " ECCO6.*")
+        for name in fuelNames:
+            m = fileReSeek(eranosFile, "\sREGION :(FUEL\d+|BLANK)\s*")
+            name = m.groups()[0]
+            m = fileReSeek(eranosFile,
+                           "\s*TOTAL\s+(\S+)\s+(\S+)\s+\S+\s+(\S+).*")
+            cycle.materials[(0,name)].nuFissionRate = float(m.groups()[0])
+            cycle.materials[(0,name)].absorptionRate = float(m.groups()[1])
+            cycle.materials[(0,name)].diffRate = float(m.groups()[2])
+    except:
+        # No ECCO calculation at end?
+        print('WARNING: No ECCO_BLANK calculation at end of run?')
+
+    # Expand all fission products
+    for cycle in cycles:
+        for mat in cycle.materials.values():
+            mat.expandFPs()
 
     # Close file and return
     eranosFile.close()
     return cycles
-           
                 
 def readMaterial(fh):
     """
@@ -161,37 +299,19 @@ def readMaterial(fh):
     of data and return it in a Material instance.
     """
 
-    newMaterial = Material()
+    mat = Material()
     while True:
         words = fh.readline().split()
         if len(words) == 1: break
         name = words[1]
         if name == "Am242g":
             name = "Am242"
-        original_mass = eval(words[3])
+        original_mass = float(words[3])
         if name[0:3] == "sfp":
-            name = name[3:].upper()
-            if name == "AM242":
-                name = "AM242M"
-            for nrow, row in enumerate(pf):
-                if nrow == 0:
-                    # Determine which column to use
-                    column = row.index(name)
-                    continue
-                if nrow > 0:
-                    name = row[0]
-                    fraction = row[column]
-                    mass = original_mass*fraction
-                # Check if selected isotope is already in list. If 
-                # so, add mass. Otherwise, create new Isotope and 
-                # add to list
-                if name in newMaterial.isotopes:
-                    newMaterial.isotopes[name].mass += mass
-                else:
-                    newMaterial.isotopes[name] = Isotope(name,mass)
+            mat.isotopes[name] = FissionProduct(name,original_mass)
         else:
-            newMaterial.isotopes[name] = Isotope(name, original_mass)
-    return newMaterial
+            mat.isotopes[name] = Isotope(name, original_mass)
+    return mat
 
 
 def writeData(filename, cycles):

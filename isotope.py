@@ -7,25 +7,25 @@ Class definition for an isotope
 import re
 
 class Isotope():
+    """
+    Create new instance of an isotope
+
+    Attributes:
+      element = atomic symbol, e.g. Am
+      Z = atomic number
+      A = mass number
+      meta = boolean indicating whether metastable
+      mass = mass of isotope in kg
+
+    Methods:
+      __str__() = isotope name, e.g. Am241m
+      origenID() = ORIGIN identified ZZAAAM
+      isActinide() = determine if actinide
+      isMinorActinide() = determine if minor actinide
+      isFissile() = determine if fissile
+    """
+
     def __init__(self, name, mass=0.0):
-        """
-        Create new instance of an isotope
-
-        Attributes:
-          element = atomic symbol, e.g. Am
-          Z = atomic number
-          A = mass number
-          meta = boolean indicating whether metastable
-          mass = mass of isotope in kg
-
-        Methods:
-          __str__() = isotope name, e.g. Am241m
-          origenID() = ORIGIN identified ZZAAAM
-          isActinide() = determine if actinide
-          isMinorActinide() = determine if minor actinide
-          isFissile() = determine if fissile
-        """
-
         # Parse isotope name
         m = re.match("([a-zA-Z]+)(\d+)([a-z])*",name)
 
@@ -41,6 +41,9 @@ class Isotope():
 
         return "{0}{1}{2}".format(self.element, self.A,
                                   "m" if self.meta else "")
+
+    def __repr__(self):
+        return "<Isotope: {0}, {1} kg>".format(str(self),self.mass)
 
     def origenID(self):
         """Returns the ORIGEN integer identifier ZZAAAM"""
@@ -87,6 +90,18 @@ class Isotope():
         else:
             return False
 
+class FissionProduct(object):
+    
+    def __init__(self, name, mass=0.0):
+        self.name = name
+        self.mass = mass
+
+    def __str__(self):
+        """Return string with isotope, e.g. Te129m"""
+        return self.name
+
+    def __repr__(self):
+        return "<FissionProduct: {0.name}, {0.mass} kg>".format(self)
 
 fissileIsotopes = ["U233", "U235", "PU239", "PU241", "AM242M",
                    "CM243", "CM245", "CM247", "CF249", "CF251"]

@@ -16,8 +16,10 @@ from PyQt4.QtGui import *
 
 import eranos
 import vision
+from material import Material
+from isotope import Isotope
 
-__version__ = "0.2.1"
+__version__ = "0.2.3"
 
 class EPTMainWindow(QMainWindow):
     def __init__(self, parent=None):
@@ -110,10 +112,14 @@ class EPTMainWindow(QMainWindow):
         self.actionSaveText.setDisabled(True)
         self.actionWriteVision = QAction("Write VISION Input...", self)
         self.actionWriteVision.setDisabled(True)
+        self.actionWriteVision2 = QAction("Write VISION (U Added)...", self)
+        self.actionWriteVision2.setDisabled(True)
         self.actionExit = QAction("E&xit",self)
         self.menuFile.addActions([self.actionLoadEranos, self.actionLoadXML,
                                   self.actionSaveXML, self.actionSaveText,
-                                  self.actionWriteVision, self.actionExit])
+                                  self.actionWriteVision, self.actionWriteVision2, 
+                                  self.actionExit])
+        self.menuFile.insertSeparator(self.actionWriteVision)
         self.menuFile.insertSeparator(self.actionExit)
         self.actionEditCooling = QAction("&Cooling Time",self)
         self.actionEditCooling.setDisabled(True)
@@ -125,6 +131,7 @@ class EPTMainWindow(QMainWindow):
         self.connect(self.actionLoadEranos, SIGNAL("triggered()"), self.loadEranos)
         self.connect(self.actionSaveText, SIGNAL("triggered()"), self.saveText)
         self.connect(self.actionWriteVision, SIGNAL("triggered()"), self.writeVision)
+        self.connect(self.actionWriteVision2, SIGNAL("triggered()"), self.writeVision2)
         self.connect(self.actionExit, SIGNAL("triggered()"), self.close)
         self.connect(self.actionEditCooling, SIGNAL("triggered()"), self.editCooling)
         self.connect(self.actionAbout, SIGNAL("triggered()"), self.about)
@@ -280,6 +287,7 @@ class EPTMainWindow(QMainWindow):
         self.cycleChanged(0)
         self.actionSaveText.setEnabled(True)
         self.actionWriteVision.setEnabled(True)
+        self.actionWriteVision2.setEnabled(True)
         self.actionEditCooling.setEnabled(True)
 
     def saveText(self):
@@ -339,6 +347,50 @@ class EPTMainWindow(QMainWindow):
         if filename:
             charge = cycle.materials[(t_charge,material)]
             discharge = cycle.materials[(t_discharge,material)]
+            vision.writeInput(filename, charge, discharge)
+
+    def writeVision2(self):
+        """
+        Format material data into form suitable for VISION.
+        """
+
+        # Choose starting cycle
+        choice, ok = QInputDialog.getInt(
+            self, "Choose Cycle", "Choose starting cycle:",
+            1, 1, len(self.cycles))
+        if ok:
+            start = choice-1
+        else:
+            return
+
+        # Choose ending cycle
+        choice, ok = QInputDialog.getInt(
+            self, "Choose Cycle", "Choose ending cycle:",
+            1, 1, len(self.cycles))
+        if ok:
+            end = choice-1
+        else:
+            return
+
+        # Choose file and write data
+        filename = str(QFileDialog.getSaveFileName(
+                self, "Save VISION Input", "./", "VISION Input (*.txt)"))
+        if filename:
+            charge = Material()
+            discharge = Material()
+            time = 0
+            for cycle in self.cycles[start:end]:
+                time += cycle.timestep*cycle.iterations
+                for iso in cycle.charge:
+                    charge.addMass(str(iso), iso.mass)
+                for iso in cycle.discharge:
+                    discharge.addMass(str(iso), iso.mass)
+
+            # Average over time
+            for iso in charge:
+                iso.mass /= time
+            for iso in discharge:
+                iso.mass /= time
             vision.writeInput(filename, charge, discharge)
 
     def editCooling(self):

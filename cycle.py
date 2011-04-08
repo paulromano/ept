@@ -5,24 +5,30 @@ Class definition for a cycle
 """
 
 class Cycle():
+    """
+    Create new instance of a cycle
+
+    Attributes:
+      n = cycle number
+      timestep = cycle timestep in days
+      iterations = number of timesteps
+      
+      materials is a dictionary of the form:
+        {(timenode, material): <Material instance>, ...}
+    """
+
+
     def __init__(self, n, timestep, iterations, cooling_time=None):
-        """
-        Create new instance of a cycle
-
-        n = cycle number
-        timestep = cycle timestep in days
-        iterations = number of timesteps
-
-        materials is a dictionary of the form:
-            {(timenode, material): <Material instance>, ...}
-        """
-
         # Set cycle attributes
         self.n = n
         self.timestep = timestep
         self.iterations = iterations
         self.cooling_time = cooling_time
         self.materials = {}
+
+        self.requiredFeed = 0
+        self.uraniumAdded = {}
+        self.additionalFeed = {}
 
     def times(self):
         """

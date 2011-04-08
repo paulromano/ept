@@ -4,45 +4,91 @@
 Class definition for a material
 """
 
+from isotope import Isotope, FissionProduct
 import parameters
 import math
 
 class Material():
+    """
+    Create new instance of a material
+    
+    Attributes:
+      isotopes = dictionary of form {"ZZAAAM": <Isotope instance>, ...}
+      volume = volume of material
+      nuFissionRate = nuFission cross section * flux
+      absorptionRate = absorption cross section * flux
+      diffRate = diffusion coefficient * flux
+      
+    Methods:
+      mass() = mass of the material
+      SQ() = significant quantities of material
+      find(isotope) = Search for isotope by name
+      heat() = heat content in W
+      gammaHeat() = heat content due to photons in W
+      neutronProduction() = neutron production rate in N/s
+      externalDose() = external dose rate in Sv/hr at 1 meter
+      criticalMass() = critical mass of bare sphere in kg
+      addMass() = add mass of a specified isotope
+
+      bathke1()
+      bathke2()
+      charlton1()
+      charlton2()
+      charlton3()
+      charlton4()
+      charlton5()
+    """
+
     def __init__(self):
-        """
-        Create new instance of a material
-
-        Attributes:
-          isotopes = dictionary of form {"ZZAAAM": <Isotope instance>, ...}
-          volume = volume of material
-          nuFissionRate = nuFission cross section * flux
-          absorptionRate = absorption cross section * flux
-          diffRate = diffusion coefficient * flux
-
-        Methods:
-          mass() = mass of the material
-          SQ() = significant quantities of material
-          find(isotope) = Search for isotope by name
-          heat() = heat content in W
-          gammaHeat() = heat content due to photons in W
-          neutronProduction() = neutron production rate in N/s
-          externalDose() = external dose rate in Sv/hr at 1 meter
-          criticalMass() = critical mass of bare sphere in kg
-
-          bathke1()
-          bathke2()
-          charlton1()
-          charlton2()
-          charlton3()
-          charlton4()
-          charlton5()
-        """
-
         self.isotopes = {}
         self.volume = None
         self.nuFissionRate = None
         self.absorptionRate = None
         self.diffRate = None
+
+    def addMass(self, name, mass, FP=False):
+        """Check if selected isotope is already in list. If so, add
+        mass. Otherwise, create new Isotope and add to list
+        """
+
+        if name in self.isotopes:
+            self.isotopes[name].mass += mass
+        else:
+            if FP:
+                self.isotopes[name] = FissionProduct(name, mass)
+            else:
+                self.isotopes[name] = Isotope(name, mass)
+
+    def __iter__(self):
+        for iso in self.isotopes.values():
+            yield iso
+
+    def expandFPs(self):
+        for fp in self.fissionProducts():
+            # Record name/mass and delete FP
+            name = fp.name 
+            original_mass = fp.mass
+            del self.isotopes[name]
+
+            # Expand into isotopes
+            name = name[3:].upper()
+            if name == "AM242":
+                name = "AM242M"
+            for nrow, row in enumerate(parameters.pf):
+                if nrow == 0:
+                    # Determine which column to use
+                    column = row.index(name)
+                    continue
+                if nrow > 0:
+                    name = row[0]
+                    fraction = row[column]
+                    mass = original_mass*fraction
+                self.addMass(name, mass)
+
+    def fissionProducts(self):
+        for iso in self.isotopes.values():
+            if type(iso) == FissionProduct:
+                yield iso
 
     def mass(self, Actinide = False, Fissile = False):
         """
