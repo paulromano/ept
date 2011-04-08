@@ -17,7 +17,7 @@ from PyQt4.QtGui import *
 from isotope import Isotope, FissionProduct
 from material import Material
 from cycle import Cycle
-from fileIO import fileReSeek
+from fileIO import fileReSeek, fileReSeekList
 from parameters import pf
 
 def loadData(filename, parent=None, gui=True):
@@ -95,7 +95,7 @@ def loadData(filename, parent=None, gui=True):
         
     pValue = 0
     for cycle in cycles:
-        print("Cycle {0}".format(cycle.n))
+        print("Loading Cycle {0}...".format(cycle.n))
 
         # Determine critical mass
         fileReSeek(eranosFile, " ECCO6.*")
@@ -141,27 +141,18 @@ def loadData(filename, parent=None, gui=True):
                     progress.setValue(pValue)
                 #print((cycle.n, time, name)) # Only for debugging
 
-
-        # TODO: Performing two file searches seems to very costly in
-        # the next block- would be good to have a method that can
-        # search multiple regex's
-
         # Read uranium added/required feed
         for i in range(3):
             # Determine if there is additional mass or not enough
-            position = eranosFile.tell()
-            m1 = fileReSeek(eranosFile," 'REQUIRED FEED FOR FUEL (\d).*")
-            rPosition = eranosFile.tell()
+            regexList = [" 'REQUIRED FEED FOR FUEL (\d).*",
+                         " 'ADDITIONAL FEED FOR FUEL (\d).*"]
 
-            eranosFile.seek(position)
-            m2 = fileReSeek(eranosFile," 'ADDITIONAL FEED FOR FUEL (\d).*")
-            aPosition = eranosFile.tell()
+            m, index = fileReSeekList(eranosFile,regexList)
 
-            if rPosition < aPosition:
+            if index == 0:
                 # We don't have enough fissile material
                 cycle.extraMass = False
-                eranosFile.seek(rPosition)
-                mat = "FUEL{0}".format(m1.groups()[0])
+                mat = "FUEL{0}".format(m.groups()[0])
                 m = fileReSeek(eranosFile," ->REPLMASS2\s+(\S+).*")
                 cycle.requiredFeed += float(m.groups()[0])
                 m = fileReSeek(eranosFile," ->REPLMASS1\s+(\S+).*")
@@ -169,7 +160,7 @@ def loadData(filename, parent=None, gui=True):
             else:
                 # Additional mass was produced
                 cycle.extraMass = True
-                mat = "FUEL{0}".format(m2.groups()[0])
+                mat = "FUEL{0}".format(m.groups()[0])
                 m = fileReSeek(eranosFile," ->EXTRA\s+(\S+).*")
                 cycle.additionalFeed[mat] = float(m.groups()[0])
                 m = fileReSeek(eranosFile," ->REPLMASS\s+(\S+).*")
@@ -177,6 +168,7 @@ def loadData(filename, parent=None, gui=True):
 
     # Create charge and discharge vectors based on additional/required
     # feed and uranium added values read in
+    print("Creating charge/discharge vectors...")
     for cycle in cycles:
         cycle.discharge = Material()
         cycle.charge = Material()
@@ -220,7 +212,6 @@ def loadData(filename, parent=None, gui=True):
 
         # Expand FPs in discharge vector
         cycle.discharge.expandFPs()
-
 
         if cycle.extraMass:
             # Add extra actinides to discharge vector
@@ -284,10 +275,33 @@ def loadData(filename, parent=None, gui=True):
         # No ECCO calculation at end?
         print('WARNING: No ECCO_BLANK calculation at end of run?')
 
+    # Create progress bar
+    if gui:
+        progress = QProgressDialog("Expanding fission products...",
+                                   "Cancel", 0, n_materials, parent)
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setWindowTitle("Loading...")
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
+        
+    pValue = 0
     # Expand all fission products
     for cycle in cycles:
+        # Progress bar
+        if gui:
+            QCoreApplication.processEvents()
+            if (progress.wasCanceled()):
+                return None
+
+        print("Expanding fission products for Cycle {0}...".format(cycle.n))
         for mat in cycle.materials.values():
             mat.expandFPs()
+
+            # Set progress bar value
+            pValue += 1
+            if gui:
+                progress.setValue(pValue)
+
 
     # Close file and return
     eranosFile.close()

@@ -19,7 +19,7 @@ import vision
 from material import Material
 from isotope import Isotope
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 class EPTMainWindow(QMainWindow):
     def __init__(self, parent=None):
