@@ -29,6 +29,8 @@ class Cycle():
         self.requiredFeed = 0
         self.uraniumAdded = {}
         self.additionalFeed = {}
+        self.dpa = {}
+        self.power = {}
 
     def times(self):
         """

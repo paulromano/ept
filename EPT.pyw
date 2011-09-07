@@ -65,7 +65,9 @@ class EPTMainWindow(QMainWindow):
                 "Charlton: Concentration (u4)",
                 "Charlton: Dose Rates (u5)",
                 "Bathke: Sub-national (FOM1)",
-                "Bathke: Unadvanced Nation (FOM2)"])
+                "Bathke: Unadvanced Nation (FOM2)",
+                "DPA",
+                "Burnup (MWd/kg)"])
         valueLabel = QLabel("Value:")
         self.propValue = QLabel()
         propLayout = QGridLayout()
@@ -158,10 +160,10 @@ class EPTMainWindow(QMainWindow):
         # Set timestep and material comboboxes
         i = self.cycleCombo.currentIndex()
         timenode = self.timeCombo.currentIndex()
-        material = str(self.matCombo.currentText())
+        mat = str(self.matCombo.currentText())
 
         # Set property value label
-        material = self.cycles[i].materials[(timenode,material)]
+        material = self.cycles[i].materials[(timenode,mat)]
         pv = self.propValue
         if self.propCombo.currentIndex() == 0:
             pv.setText("{0:10.4e}".format(material.mass()))
@@ -214,15 +216,18 @@ class EPTMainWindow(QMainWindow):
             pv.setText("{0:10.4e}".format(material.charlton5()))
         if self.propCombo.currentIndex() == 17:
             if material.bathke1():
-                pv.setText("{0:10.4e}".format(material.bathke1()))
+                pv.setText("{0:10.4e}".format(material.bathke1(False)))
             else:
                 pv.setText("")
         if self.propCombo.currentIndex() == 18:
             if material.bathke2():
-                pv.setText("{0:10.4e}".format(material.bathke2()))
+                pv.setText("{0:10.4e}".format(material.bathke2(False)))
             else:
                 pv.setText("")
-            
+        if self.propCombo.currentIndex() == 19:
+            pv.setText("{0:10.4e}".format(material.dpavalue()))
+        if self.propCombo.currentIndex() == 20:
+            pv.setText("{0:10.4e}".format(material.intpower()/self.cycles[1].materials[(0,mat)].mass(Actinide = True)))
         # Populate material tree
         self.dataTree.clear()
         isotopes = material.isotopes.keys()

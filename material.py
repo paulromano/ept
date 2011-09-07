@@ -18,6 +18,8 @@ class Material():
       nuFissionRate = nuFission cross section * flux
       absorptionRate = absorption cross section * flux
       diffRate = diffusion coefficient * flux
+      flux = total flux
+      power = 
       
     Methods:
       mass() = mass of the material
@@ -45,6 +47,9 @@ class Material():
         self.nuFissionRate = None
         self.absorptionRate = None
         self.diffRate = None
+        self.flux = None
+        self.power = None
+        self.dpa = None
 
     def addMass(self, name, mass, FP=False):
         """Check if selected isotope is already in list. If so, add
@@ -66,7 +71,7 @@ class Material():
     def expandFPs(self):
         for fp in self.fissionProducts():
             # Record name/mass and delete FP
-            name = fp.name 
+            name = fp.name
             original_mass = fp.mass
             del self.isotopes[name]
 
@@ -83,6 +88,9 @@ class Material():
                     name = row[0]
                     fraction = row[column]
                     mass = original_mass*fraction
+                    if name == "Cs133":
+		      print(name,original_mass,fraction,fp.name)
+		      raw_input('Press ENTER to continue...\n')
                 self.addMass(name, mass)
 
     def fissionProducts(self):
@@ -207,12 +215,28 @@ class Material():
         """
 
         if self.nuFissionRate > self.absorptionRate:
-            R = math.sqrt(math.pi**2 * self.diffRate/
+         #   R = math.sqrt(math.pi**2 * self.diffRate/
+         #                 (self.nuFissionRate - self.absorptionRate))
+            R = math.sqrt(math.pi**2 * (self.flux * 0.45)/
                           (self.nuFissionRate - self.absorptionRate))
-            return 4./3. * math.pi * R**3 * self.mass()/self.volume
+            return 4./3. * math.pi * R**3 * 16. / 1000. #self.mass()/self.volume
         return None
 
-    def bathke1(self):
+    def dpavalue(self):
+        if self.dpa is not None:
+           dpavalue = self.dpa
+        else:
+	   dpavalue = 0.
+        return dpavalue
+
+    def intpower(self):
+        if self.power is not None:
+	   intpower = self.power/1.E6
+	else:
+	   intpower = 0.
+	return intpower
+
+    def bathke1(self, Dose = False):
         """
         Returns the first metric in the GLOBAL '09 paper, The
         Attractiveness of Materials in Advanced Nuclear Fuel Cycles
@@ -222,13 +246,17 @@ class Material():
         M = self.criticalMass()
         if not M:
             return None
-        h = self.heat()/self.mass()
+        h = self.heat(True)/self.mass()
         # Convert dose to rad (assume 1 rad = 1 rem)
-        D = 0.2 * 100 * self.externalDose()
+        if not Dose:
+            D = 0.2 * 100 * self.externalDose()
+        else:
+            D = 0.
+        print (M,h,D)
         return 1.0 - math.log10(M/800.0 + M*h/4500.0 + M/50.0 * 
                                 (D/500.0)**(1.0/math.log10(2.0)))
 
-    def bathke2(self):
+    def bathke2(self, Dose = False):
         """
         Returns the second metric in the GLOBAL '09 paper, The
         Attractiveness of Materials in Advanced Nuclear Fuel Cycles
@@ -241,7 +269,10 @@ class Material():
         h = self.heat()/self.mass()
         S = self.neutronProduction()/self.mass()
         # Convert dose to rad (assume 1 rad = 1 rem)
-        D = 0.2 * 100 * self.externalDose()
+        if not Dose:
+            D = 0.2 * 100 * self.externalDose()
+        else:
+            D = 0.
         return 1.0 - math.log10(M/800.0 + M*h/4500.0 + M*S/6.8e6 + 
                                 M/50.0 * (D/500.0)**(1.0/math.log10(2.0)))
 

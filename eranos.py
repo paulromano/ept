@@ -135,6 +135,7 @@ def loadData(filename, parent=None, gui=True):
                     material.absorptionRate = xsDict[name][1]
                     material.diffRate = xsDict[name][2]
                 cycle.materials[(node,name)] = material
+                #print (node,name)
                 # Set progress bar value
                 pValue += 1
                 if gui:
@@ -157,6 +158,8 @@ def loadData(filename, parent=None, gui=True):
                 cycle.requiredFeed += float(m.groups()[0])
                 m = fileReSeek(eranosFile," ->REPLMASS1\s+(\S+).*")
                 cycle.uraniumAdded[mat] = float(m.groups()[0])
+                m = fileReSeek(eranosFile," ->POWER\d\s+(\S+).*")
+                cycle.materials[(5,mat)].power = float(m.groups()[0])
             else:
                 # Additional mass was produced
                 cycle.extraMass = True
@@ -165,7 +168,34 @@ def loadData(filename, parent=None, gui=True):
                 cycle.additionalFeed[mat] = float(m.groups()[0])
                 m = fileReSeek(eranosFile," ->REPLMASS\s+(\S+).*")
                 cycle.uraniumAdded[mat] = float(m.groups()[0])
+                m = fileReSeek(eranosFile," ->POWER\d\s+(\S+).*")
+                cycle.materials[(5,mat)].power = float(m.groups()[0])
+        
+        posb = eranosFile.tell()
+        for i in range(4):
+            # Determine if there is additional mass or not enough
+            regexList = [" 'DPA of FUEL (\d).*",
+                         " 'DPA of BLANKET'.*"]
 
+            m, index = fileReSeekList(eranosFile,regexList)
+
+            if index == 0:
+                # We don't have enough fissile material
+                mat = "FUEL{0}".format(m.groups()[0])
+                m = fileReSeek(eranosFile," ->DPA\dC\s+(\S+).*")
+                #print (m.group(), m.groups())
+                #print (mat)
+                cycle.materials[(5,mat)].dpa = float(m.groups()[0])
+            else:
+                # Additional mass was produced
+                mat = "BLANK"
+                m = fileReSeek(eranosFile," ->DPABC\s+(\S+).*")
+                #print (m.group(), m.groups())
+                cycle.materials[(5,mat)].dpa = float(m.groups()[0])
+                #cycle.materials[(0,mat)].dpa = float(m.groups()[0])
+
+
+    eranosFile.seek(posb)
     # Create charge and discharge vectors based on additional/required
     # feed and uranium added values read in
     print("Creating charge/discharge vectors...")
@@ -241,6 +271,17 @@ def loadData(filename, parent=None, gui=True):
                                ("Pu241", 0.1092), ("Pu242", 0.0744)]:
                 cycle.charge.addMass(name, frac*cycle.requiredFeed)
     
+    posb = eranosFile.tell()
+    try:
+        mat = "BLANK"
+        m = fileReSeek(eranosFile," ->POWERB\s+(\S+).*")
+        n = len(cycles)
+        #print (n, float(m.groups()[0]))
+        cycle.materials[(5,mat)].power = float(m.groups()[0])
+    except:
+        print('WARNING: No Blanket Discharge Power')
+
+    eranosFile.seek(posb)
     try:
         # Determine reaction rates for FUEL3, FUEL6, FUEL9, and
         # BLANK. First we need to load material balance data. Is this
@@ -271,6 +312,9 @@ def loadData(filename, parent=None, gui=True):
             cycle.materials[(0,name)].nuFissionRate = float(m.groups()[0])
             cycle.materials[(0,name)].absorptionRate = float(m.groups()[1])
             cycle.materials[(0,name)].diffRate = float(m.groups()[2])
+            m = fileReSeek(eranosFile, "\s*TOTAL FLUX =\s+(\S+)\s*")
+            cycle.materials[(0,name)].flux = float(m.groups()[0])
+            #print(m.groups()[0])
     except:
         # No ECCO calculation at end?
         print('WARNING: No ECCO_BLANK calculation at end of run?')
