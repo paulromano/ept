@@ -147,6 +147,10 @@ class EPTMainWindow(QMainWindow):
 
         # Perform initial loading
         self.cycles = []
+        self.charge = []
+        self.discharge = []
+        self.chblank = []
+        self.disblank = []
 
     def update(self):
         """
@@ -284,7 +288,7 @@ class EPTMainWindow(QMainWindow):
                 self, "Load ERANOS Data", "./", "ERANOS Data (*.data.*)"))
         if not filename:
             return
-        self.cycles = eranos.loadData(filename)
+        self.cycles, self.charge, self.discharge, self.chblank, self.disblank = eranos.loadData(filename)
         # self.eranosOut = eranos.EranosOutput(filename, self)
         # self.eranosOut.loadData()
         self.cycleCombo.clear()
@@ -310,93 +314,22 @@ class EPTMainWindow(QMainWindow):
         Format material data into form suitable for VISION.
         """
 
-        # Choose cycle
-        choice, ok = QInputDialog.getInt(
-            self, "Choose Cycle", "Choose which cycle to load from:",
-            1, 1, len(self.cycles))
-        if ok:
-            cycle = self.cycles[choice-1]
-        else:
-            return
-
-        # Choose charge time
-        choice, ok = QInputDialog.getItem(
-            self, "Choose Charge Time", "Choose timestep for charge material",
-            [str(i) for i in cycle.times()], 0, False)
-        if ok:
-            t_charge = eval(str(choice))
-        else:
-            return
-
-        # Choose discharge time
-        choice, ok = QInputDialog.getItem(
-            self, "Choose Discharge Time", "Choose timestep for discharge "
-            "material", [str(i) for i in cycle.times()], 0, False)
-        if ok:
-            t_discharge = eval(str(choice))
-        else:
-            return
-
-        # Choose material from
-        choice, ok = QInputDialog.getItem(
-            self, "Choose Discharge Time", "Choose timestep for discharge "
-            "material", cycle.materialNames(), 0, False)
-        if ok:
-            material = str(choice)
-        else:
-            return
-                                        
         # Choose file and write data
         filename = str(QFileDialog.getSaveFileName(
                 self, "Save VISION Input", "./", "VISION Input (*.txt)"))
         if filename:
-            charge = cycle.materials[(t_charge,material)]
-            discharge = cycle.materials[(t_discharge,material)]
-            vision.writeInput(filename, charge, discharge)
+            vision.writeInput(filename, self.charge, self.discharge)
 
     def writeVision2(self):
         """
         Format material data into form suitable for VISION.
         """
 
-        # Choose starting cycle
-        choice, ok = QInputDialog.getInt(
-            self, "Choose Cycle", "Choose starting cycle:",
-            1, 1, len(self.cycles))
-        if ok:
-            start = choice-1
-        else:
-            return
-
-        # Choose ending cycle
-        choice, ok = QInputDialog.getInt(
-            self, "Choose Cycle", "Choose ending cycle:",
-            1, 1, len(self.cycles))
-        if ok:
-            end = choice-1
-        else:
-            return
-
         # Choose file and write data
         filename = str(QFileDialog.getSaveFileName(
                 self, "Save VISION Input", "./", "VISION Input (*.txt)"))
         if filename:
-            charge = Material()
-            discharge = Material()
-            time = 0
-            for cycle in self.cycles[start:end]:
-                time += cycle.timestep*cycle.iterations
-                for iso in cycle.charge:
-                    charge.addMass(str(iso), iso.mass)
-                for iso in cycle.discharge:
-                    discharge.addMass(str(iso), iso.mass)
-
-            # Average over time
-            for iso in charge:
-                iso.mass /= time
-            for iso in discharge:
-                iso.mass /= time
-            vision.writeInput(filename, charge, discharge)
+            vision.writeInput(filename, self.chblank, self.disblank)
 
     def editCooling(self):
         index = self.cycleCombo.currentIndex()

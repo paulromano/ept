@@ -173,7 +173,7 @@ def loadData(filename, parent=None, gui=True):
         
         posb = eranosFile.tell()
         for i in range(4):
-            # Determine if there is additional mass or not enough
+            # Get DPA information
             regexList = [" 'DPA of FUEL (\d).*",
                          " 'DPA of BLANKET'.*"]
 
@@ -196,82 +196,80 @@ def loadData(filename, parent=None, gui=True):
 
 
     eranosFile.seek(posb)
-    # Create charge and discharge vectors based on additional/required
-    # feed and uranium added values read in
-    print("Creating charge/discharge vectors...")
-    for cycle in cycles:
-        cycle.discharge = Material()
-        cycle.charge = Material()
+    # Read charge and discharge vectors at end of ERANOS output file
+    charge = Material()
+    discharge = Material()
 
-        blank = cycle.materials[0,"BLANK"]
-        if blank.isotopes["sfpU235"].mass < 1e-6:
-            # Add blanket from previous cycle to discharge vector
-            if cycle.n > 1:
-                prevCycle = cycles[cycle.n - 2] # since n is indexed from 1
-                time = len(prevCycle.times()) - 1
-                prevBlank = prevCycle.materials[time, "BLANK"]
-                for iso in prevBlank:
-                    if type(iso) == FissionProduct:
-                        prevCycle.discharge.addMass(str(iso), iso.mass, True)
-                    else:
-                        prevCycle.discharge.addMass(str(iso), iso.mass)
-                prevCycle.discharge.expandFPs()
+    listeiso = ['Th232','Pa231','Pa233','U232','U233','U234','U235','U236','U238','Np237',
+                'Np239','Np238','Pu238','Pu239','Pu240','Pu241','Pu242','Am241','Am242g',
+                'Am242m','Am243','Cm242','Cm243','Cm244','Cm245','Cm246','Cm247','Cm248',
+                'Bk249','Cf249','Cf250','Cf251','Cf252','sfpU234','sfpU235','sfpU236',
+                'sfpU238','sfpNp237','sfpPu238','sfpPu239','sfpPu240','sfpPu241','sfpPu242',
+                'sfpAm241','sfpAm242m','sfpAm243','sfpCm243','sfpCm244','sfpCm245']
 
-            # Add next blanket to charge vector
-            for iso in blank:
-                if type(iso) == FissionProduct:
-                    cycle.charge.addMass(str(iso), iso.mass, True)
-                else:
-                    cycle.charge.addMass(str(iso), iso.mass)
-            cycle.charge.expandFPs()
-
-        for fuelName in cycle.uraniumAdded:
-            time = len(cycle.times()) - 1
-            mat = cycle.materials[time, fuelName]
-            
-            # Add depleted uranium to charge
-            total_removed = cycle.uraniumAdded[fuelName]
-            cycle.charge.addMass("U235", 0.002*total_removed)
-            cycle.charge.addMass("U238", 0.998*total_removed)
-
-            # Add fission products to discharge
-            total_fp_mass = sum([fp.mass for fp in mat.fissionProducts()])
-            for fp in mat.fissionProducts():
-                fpMass = total_removed*fp.mass/total_fp_mass
-                cycle.discharge.addMass(fp.name, fpMass, True)
-
-        # Expand FPs in discharge vector
-        cycle.discharge.expandFPs()
-
-        if cycle.extraMass:
-            # Add extra actinides to discharge vector
-            for fuelName in cycle.additionalFeed:
-                time = len(cycle.times()) - 1
-                mat = cycle.materials[time, fuelName]
-
-                extra_mass = cycle.additionalFeed[fuelName]
-
-                # determine total mass of actinides
-                total_ac_mass = 0
-                for iso in mat:
-                    if type(iso) == Isotope:
-                        total_ac_mass += iso.mass
-
-                # add to discharge vector
-                for iso in mat:
-                    if type(iso) == Isotope:
-                        acMass = extra_mass * iso.mass/total_ac_mass
-                        cycle.discharge.addMass(str(iso), acMass)
-
-        else:
-
-            # Add minor actinides to charge vector
-            for name, frac in [("Np237", 0.0588), ("Pu238", 0.0271),
-                               ("Pu239", 0.4905), ("Pu240", 0.2400),
-                               ("Pu241", 0.1092), ("Pu242", 0.0744)]:
-                cycle.charge.addMass(name, frac*cycle.requiredFeed)
+    m = fileReSeek(eranosFile," ->CHARGE\s+(\S+).*")
+    words = m.group().split()
+    words.pop(0)
+    value = [float(val) for val in words]
     
-    posb = eranosFile.tell()
+    for i in range(10):
+      words = eranosFile.readline().split()
+      value.extend([float(val) for val in words])
+    for iso in range(33):
+      charge.addMass(listeiso[iso],value[iso])
+    for iso in range(16):  
+      charge.addMass(listeiso[iso+33],value[iso+33],True)
+    charge.expandFPs()
+    
+    m = fileReSeek(eranosFile," ->DISCHARGE\s+(\S+).*")
+
+    words = m.group().split()
+    words.pop(0)
+    value = [float(val) for val in words]
+    
+    for i in range(10):
+      words = eranosFile.readline().split()
+      value.extend([float(val) for val in words])
+    for iso in range(33):
+      discharge.addMass(listeiso[iso],value[iso])
+    for iso in range(16):  
+      discharge.addMass(listeiso[iso+33],value[iso+33],True)
+    discharge.expandFPs()
+
+    chblank = Material()
+    disblank = Material()
+    
+    m = fileReSeek(eranosFile," ->CHBLANK\s+(\S+).*")
+    words = m.group().split()
+    words.pop(0)
+    value = [float(val) for val in words]
+    
+    for i in range(10):
+      words = eranosFile.readline().split()
+      value.extend([float(val) for val in words])
+    for iso in range(33):
+      chblank.addMass(listeiso[iso],value[iso])
+    for iso in range(16):  
+      chblank.addMass(listeiso[iso+33],value[iso+33],True)
+    chblank.expandFPs()
+
+    m = fileReSeek(eranosFile," ->DISBLANK\s+(\S+).*")    
+    
+    words = m.group().split()
+    words.pop(0)
+    value = [float(val) for val in words]
+    
+    for i in range(10):
+      words = eranosFile.readline().split()
+      value.extend([float(val) for val in words])
+    for iso in range(33):
+      disblank.addMass(listeiso[iso],value[iso])
+    for iso in range(16):  
+      disblank.addMass(listeiso[iso+33],value[iso+33],True)
+    disblank.expandFPs()
+
+    #posb = eranosFile.tell()
+    eranosFile.seek(posb)
     try:
         mat = "BLANK"
         m = fileReSeek(eranosFile," ->POWERB\s+(\S+).*")
@@ -349,7 +347,7 @@ def loadData(filename, parent=None, gui=True):
 
     # Close file and return
     eranosFile.close()
-    return cycles
+    return cycles, charge, discharge, chblank, disblank
                 
 def readMaterial(fh):
     """

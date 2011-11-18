@@ -88,9 +88,6 @@ class Material():
                     name = row[0]
                     fraction = row[column]
                     mass = original_mass*fraction
-                    if name == "Cs133":
-		      print(name,original_mass,fraction,fp.name)
-		      raw_input('Press ENTER to continue...\n')
                 self.addMass(name, mass)
 
     def fissionProducts(self):
