@@ -88,9 +88,9 @@ class Material():
                     name = row[0]
                     fraction = row[column]
                     mass = original_mass*fraction
-                    if name == "Cs133":
-		      print(name,original_mass,fraction,fp.name)
-		      raw_input('Press ENTER to continue...\n')
+                    #if name == "Cs133":
+		      #print(name,original_mass,fraction,fp.name)
+		      #raw_input('Press ENTER to continue...\n')
                 self.addMass(name, mass)
 
     def fissionProducts(self):
@@ -147,7 +147,7 @@ class Material():
                 return self.isotopes[key]
         return None
 
-    def heat(self, MA = False):
+    def heat(self, MA = True):
         """Return the heat content of the material in W"""
 
         rate = 0.0
@@ -158,7 +158,7 @@ class Material():
                     rate += isotope.mass * parameters.data[key.upper()][0]
         return rate
 
-    def gammaHeat(self, MA = False):
+    def gammaHeat(self, MA = True):
         """Return the heat content of the material due to photons in W"""
 
         rate = 0.0
@@ -169,7 +169,7 @@ class Material():
                     rate += isotope.mass * parameters.data[key.upper()][1]
         return rate
 
-    def neutronProduction(self, MA = False):
+    def neutronProduction(self, MA = True):
         """Return the neutron production rate of the material in N/s"""
 
         rate = 0.0
@@ -180,7 +180,7 @@ class Material():
                     rate += isotope.mass * parameters.data[key.upper()][2]
         return rate
 
-    def externalDose(self, MA = False):
+    def externalDose(self, MA = True):
         """
         Return the external dose rate of the material in Sv/hr at
         1-meter
@@ -236,6 +236,29 @@ class Material():
 	   intpower = 0.
 	return intpower
 
+    def radiotoxing(self, MA = True):
+        """Return the neutron production rate of the material in N/s"""
+
+        rate = 0.0
+        for key in self.isotopes:
+            if key.upper() in parameters.data:
+                isotope = self.isotopes[key]
+                if not MA or isotope.isMinorActinide():
+                    rate += isotope.mass * parameters.data[key.upper()][4]
+        return rate
+       
+    def radiotoxinh(self, MA = True):
+        """Return the neutron production rate of the material in N/s"""
+
+        rate = 0.0
+        for key in self.isotopes:
+            if key.upper() in parameters.data:
+                isotope = self.isotopes[key]
+                if not MA or isotope.isMinorActinide():
+                    rate += isotope.mass * parameters.data[key.upper()][5]
+        return rate
+
+        
     def bathke1(self, Dose = False):
         """
         Returns the first metric in the GLOBAL '09 paper, The
@@ -378,3 +401,53 @@ class Material():
         else:
             return 1
 
+    def mohit7(self):
+	"""
+	Determine u7 from Mohit
+	"""
+	x = self.neutronProduction() 
+	if  x <= 1e4:
+	    return 1
+	elif x>1e4 and x<=1e6:
+	    return -3e-7*x+0.8
+	elif x>1e6 and x<=1e14:
+	    return -4e-15*x+0.5
+	else:
+	    return 0
+	    
+    def mohit8(self):
+	"""
+	Determine u8 from Mohit
+	"""
+	x = self.radiotoxinh()
+	if x<=5e12:
+	   return 1
+	elif x>5e12 and x<5e13:
+	   return -2e-14*x+1.1111
+	else:
+	   return 0
+     
+    def mohit9(self):
+	"""
+	Determine u9 from Mohit
+	"""
+	x = self.radiotoxing()
+	if x<=1e10:
+	   return 1
+	elif x>1e10 and x<1e11:
+	   return -1e-11*x+1.1111
+	else:
+	   return 0
+     
+     
+    def mohit12(self):
+	"""
+	Determine u12 from Mohit
+	"""
+	x = self.heat() / self.mass()
+	if x<=50:
+	   return 1
+	elif x>50 and x<400:
+	   return -0.0029*x+1.1429
+	else:
+	   return 0

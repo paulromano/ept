@@ -142,7 +142,7 @@ lanthanides = ['La138','La139','La140','La141','La142','La143','La144','La145',
                'Gd164','Gd165','Tb159','Tb160','Tb161','Tb162','Tb162M','Tb163',
                'Tb163M','Tb164','Tb165','Dy160','Dy161','Dy162','Dy163','Dy164',
                'Dy165','Dy165M','Dy166','Ho165','Ho166','Er166','Er167','Er167M']
-
+             
 def writeInput(filename, charge, discharge):
     """
     Formats data from a charge Material and a discharge Material into a form

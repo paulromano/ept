@@ -67,7 +67,15 @@ class EPTMainWindow(QMainWindow):
                 "Bathke: Sub-national (FOM1)",
                 "Bathke: Unadvanced Nation (FOM2)",
                 "DPA",
-                "Burnup (MWd/kg)"])
+                "Burnup (MWd/kg)",
+                "Radiotoxicity - Ingestion (Sv/kg)",
+                "Radiotoxicity - Ingestion, MA only (Sv/kg)",
+                "Radiotoxicity - Inhalation (Sv/kg)",
+                "Radiotoxicity - Inhalation, MA only (Sv/kg)",
+                "Mohit: Fabrication (u7)",
+                "Mohit: Radiotoxicity-inh (u8)",
+                "Mohit: Radiotoxicity-ing (u9)",
+                "Mohit: Transportation (u12)"])
         valueLabel = QLabel("Value:")
         self.propValue = QLabel()
         propLayout = QGridLayout()
@@ -112,9 +120,9 @@ class EPTMainWindow(QMainWindow):
         self.actionSaveXML.setDisabled(True)
         self.actionSaveText = QAction("Save ERANOS Data as text...", self)
         self.actionSaveText.setDisabled(True)
-        self.actionWriteVision = QAction("Write VISION Input...", self)
+        self.actionWriteVision = QAction("Write VISION Input - Single Stream...", self)
         self.actionWriteVision.setDisabled(True)
-        self.actionWriteVision2 = QAction("Write VISION (U Added)...", self)
+        self.actionWriteVision2 = QAction("Write VISION Input - Two Streams...", self)
         self.actionWriteVision2.setDisabled(True)
         self.actionExit = QAction("E&xit",self)
         self.menuFile.addActions([self.actionLoadEranos, self.actionLoadXML,
@@ -147,6 +155,10 @@ class EPTMainWindow(QMainWindow):
 
         # Perform initial loading
         self.cycles = []
+        self.charge = []
+        self.discharge = []
+        self.chblank = []
+        self.disblank = []
 
     def update(self):
         """
@@ -171,25 +183,25 @@ class EPTMainWindow(QMainWindow):
             pv.setText("{0:10.4e}".format(material.volume))
         if self.propCombo.currentIndex() == 2:
             pv.setText("{0:10.4e}".format(
-                    material.heat() / material.mass() ))
+                    material.heat(False) / material.mass() ))
         if self.propCombo.currentIndex() == 3:
             pv.setText("{0:10.4e}".format(
                     material.heat(True) / material.mass() ))
         if self.propCombo.currentIndex() == 4:
             pv.setText("{0:10.4e}".format(
-                    material.gammaHeat() / material.mass() ))
+                    material.gammaHeat(False) / material.mass() ))
         if self.propCombo.currentIndex() == 5:
             pv.setText("{0:10.4e}".format(
                     material.gammaHeat(True) / material.mass() ))
         if self.propCombo.currentIndex() == 6:
             pv.setText("{0:10.4e}".format(
-                    material.neutronProduction() / material.mass() ))
+                    material.neutronProduction(False) / material.mass() ))
         if self.propCombo.currentIndex() == 7:
             pv.setText("{0:10.4e}".format(
                     material.neutronProduction(True) / material.mass() ))
         if self.propCombo.currentIndex() == 8:
             pv.setText("{0:10.4e}".format(
-                    material.externalDose() / material.mass() ))
+                    material.externalDose(False) / material.mass() ))
         if self.propCombo.currentIndex() == 9:
             pv.setText("{0:10.4e}".format(
                     material.externalDose(True) / material.mass() ))
@@ -228,7 +240,30 @@ class EPTMainWindow(QMainWindow):
             pv.setText("{0:10.4e}".format(material.dpavalue()))
         if self.propCombo.currentIndex() == 20:
             pv.setText("{0:10.4e}".format(material.intpower()/self.cycles[1].materials[(0,mat)].mass(Actinide = True)))
-        # Populate material tree
+        if self.propCombo.currentIndex() == 21:
+            pv.setText("{0:10.4e}".format(
+                    material.radiotoxing(False) / material.mass() ))
+        if self.propCombo.currentIndex() == 22:
+            pv.setText("{0:10.4e}".format(
+                    material.radiotoxing(True) / material.mass() ))
+        if self.propCombo.currentIndex() == 23:
+            pv.setText("{0:10.4e}".format(
+                    material.radiotoxinh(False) / material.mass() ))
+        if self.propCombo.currentIndex() == 24:
+            pv.setText("{0:10.4e}".format(
+                    material.radiotoxinh(True) / material.mass() ))
+        if self.propCombo.currentIndex() == 25:
+            pv.setText("{0:10.4e}".format(material.mohit7()))
+        if self.propCombo.currentIndex() == 26:
+            pv.setText("{0:10.4e}".format(material.mohit8()))
+        if self.propCombo.currentIndex() == 27:
+            pv.setText("{0:10.4e}".format(material.mohit9()))
+        if self.propCombo.currentIndex() == 28:
+            pv.setText("{0:10.4e}".format(material.mohit12()))
+
+            
+            
+      # Populate material tree
         self.dataTree.clear()
         isotopes = material.isotopes.keys()
         isotopes.sort()
@@ -284,7 +319,7 @@ class EPTMainWindow(QMainWindow):
                 self, "Load ERANOS Data", "./", "ERANOS Data (*.data.*)"))
         if not filename:
             return
-        self.cycles = eranos.loadData(filename)
+        self.cycles, self.charge, self.discharge, self.chblank, self.disblank, self.onestreamch, self.onestreamdis = eranos.loadData(filename)
         # self.eranosOut = eranos.EranosOutput(filename, self)
         # self.eranosOut.loadData()
         self.cycleCombo.clear()
@@ -307,96 +342,32 @@ class EPTMainWindow(QMainWindow):
 
     def writeVision(self):
         """
-        Format material data into form suitable for VISION.
+        Format material data into form suitable for VISION - 1 stream.
         """
 
-        # Choose cycle
-        choice, ok = QInputDialog.getInt(
-            self, "Choose Cycle", "Choose which cycle to load from:",
-            1, 1, len(self.cycles))
-        if ok:
-            cycle = self.cycles[choice-1]
-        else:
-            return
-
-        # Choose charge time
-        choice, ok = QInputDialog.getItem(
-            self, "Choose Charge Time", "Choose timestep for charge material",
-            [str(i) for i in cycle.times()], 0, False)
-        if ok:
-            t_charge = eval(str(choice))
-        else:
-            return
-
-        # Choose discharge time
-        choice, ok = QInputDialog.getItem(
-            self, "Choose Discharge Time", "Choose timestep for discharge "
-            "material", [str(i) for i in cycle.times()], 0, False)
-        if ok:
-            t_discharge = eval(str(choice))
-        else:
-            return
-
-        # Choose material from
-        choice, ok = QInputDialog.getItem(
-            self, "Choose Discharge Time", "Choose timestep for discharge "
-            "material", cycle.materialNames(), 0, False)
-        if ok:
-            material = str(choice)
-        else:
-            return
-                                        
         # Choose file and write data
         filename = str(QFileDialog.getSaveFileName(
-                self, "Save VISION Input", "./", "VISION Input (*.txt)"))
+                self, "Save VISION Input - Single stream", "./", "VISION Input (*.txt)"))
         if filename:
-            charge = cycle.materials[(t_charge,material)]
-            discharge = cycle.materials[(t_discharge,material)]
-            vision.writeInput(filename, charge, discharge)
+            vision.writeInput(filename, self.onestreamch, self.onestreamdis)
 
     def writeVision2(self):
         """
-        Format material data into form suitable for VISION.
+        Format material data into form suitable for VISION - 2 streams.
         """
-
-        # Choose starting cycle
-        choice, ok = QInputDialog.getInt(
-            self, "Choose Cycle", "Choose starting cycle:",
-            1, 1, len(self.cycles))
-        if ok:
-            start = choice-1
-        else:
-            return
-
-        # Choose ending cycle
-        choice, ok = QInputDialog.getInt(
-            self, "Choose Cycle", "Choose ending cycle:",
-            1, 1, len(self.cycles))
-        if ok:
-            end = choice-1
-        else:
-            return
 
         # Choose file and write data
         filename = str(QFileDialog.getSaveFileName(
-                self, "Save VISION Input", "./", "VISION Input (*.txt)"))
+                self, "Save VISION Input - Stream 1", "./", "VISION Input (*.txt)"))
         if filename:
-            charge = Material()
-            discharge = Material()
-            time = 0
-            for cycle in self.cycles[start:end]:
-                time += cycle.timestep*cycle.iterations
-                for iso in cycle.charge:
-                    charge.addMass(str(iso), iso.mass)
-                for iso in cycle.discharge:
-                    discharge.addMass(str(iso), iso.mass)
+            vision.writeInput(filename, self.charge, self.discharge)
 
-            # Average over time
-            for iso in charge:
-                iso.mass /= time
-            for iso in discharge:
-                iso.mass /= time
-            vision.writeInput(filename, charge, discharge)
+        
+        # Choose file and write data
+        filename = str(QFileDialog.getSaveFileName(
+                self, "Save VISION Input - Stream 2", "./", "VISION Input (*.txt)"))
+        if filename:
+            vision.writeInput(filename, self.chblank, self.disblank)
 
     def editCooling(self):
         index = self.cycleCombo.currentIndex()
